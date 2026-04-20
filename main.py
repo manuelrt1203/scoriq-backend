@@ -663,6 +663,30 @@ def health():
     return {"ok": True}
 
 
+@app.get("/teams")
+def list_teams():
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT strTeam FROM teams WHERE strTeam IS NOT NULL ORDER BY strTeam"
+        ).fetchall()
+        return [r[0] for r in rows]
+    finally:
+        conn.close()
+
+
+@app.get("/competitions")
+def list_competitions():
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT name FROM competitions WHERE name IS NOT NULL ORDER BY name"
+        ).fetchall()
+        return [r[0] for r in rows]
+    finally:
+        conn.close()
+
+
 @app.get("/stats/summary", response_model=SummaryResponse)
 def stats_summary():
     conn = get_conn()
