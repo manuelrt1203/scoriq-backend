@@ -9,6 +9,7 @@ from typing import Any
 
 import joblib
 import pandas as pd
+import requests as http_requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -903,6 +904,51 @@ def top_picks(limit: int = 5):
 @app.post("/evaluate/latest", response_model=ActionResponse)
 def evaluate_latest_placeholder():
     return ActionResponse(ok=True, message="Branche ici ton script d'évaluation depuis la base.")
+
+
+@app.get("/results/match")
+def get_match_result(home: str, away: str, season: str = "2025-2026"):
+    """Interroge TheSportsDB pour le score réel d'un match donné."""
+    try:
+        event_name = f"{home} vs {away}"
+        resp = http_requests.get(
+            "https://www.thesportsdb.com/api/v1/json/123/searchevents.php",
+            params={"e": event_name, "s": season},
+            timeout=10,
+        )
+        events = resp.json().get("event") or []
+        if not events:
+            return {"found": False}
+
+        ev = events[0]
+        home_score = ev.get("intHomeScore")
+        away_score = ev.get("intAwayScore")
+        status     = ev.get("strStatus", "")
+
+        if home_score is None or away_score is None:
+            return {"found": True, "finished": False, "status": status}
+
+        h, a = int(home_score), int(away_score)
+        real1x2  = "1" if h > a else "2" if a > h else "X"
+        total    = h + a
+        btts     = 1 if h > 0 and a > 0 else 0
+        over25   = 1 if total > 2 else 0
+        over15   = 1 if total > 1 else 0
+
+        return {
+            "found": True,
+            "finished": True,
+            "status": status,
+            "home_score": h,
+            "away_score": a,
+            "real_result": real1x2,
+            "real_btts": btts,
+            "real_over_2_5": over25,
+            "over_1_5": over15,
+            "real_total_goals": total,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @app.get("/results/evaluated")
