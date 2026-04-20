@@ -903,3 +903,28 @@ def top_picks(limit: int = 5):
 @app.post("/evaluate/latest", response_model=ActionResponse)
 def evaluate_latest_placeholder():
     return ActionResponse(ok=True, message="Branche ici ton script d'évaluation depuis la base.")
+
+
+@app.get("/results/evaluated")
+def results_evaluated(days: int = 30):
+    """Retourne les matchs évalués récents pour l'auto-évaluation des paris."""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+                home_team, away_team, match_date,
+                real_home_goals, real_away_goals, real_total_goals,
+                real_result, real_btts, real_over_2_5,
+                over_1_5
+            FROM predictions_history
+            WHERE evaluation_status = 'OK'
+              AND real_home_goals IS NOT NULL
+              AND match_date >= date('now', ? || ' days')
+            ORDER BY match_date DESC
+            """,
+            (f"-{days}",),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
