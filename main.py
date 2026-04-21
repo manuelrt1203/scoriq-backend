@@ -944,27 +944,17 @@ def standings(competition: str, season: str | None = None):
 
     conn = get_conn()
     try:
-        # Build keyword list from competition name to match across naming variants
-        # e.g. "La Liga" → ["La", "Liga"] → LIKE %La% OR LIKE %Liga%
-        # e.g. "Bundesliga" → LIKE %Bundesliga%
-        keywords = [w for w in competition.split() if len(w) > 3]
-        if not keywords:
-            keywords = [competition]
-
-        clauses = " OR ".join(["competition_name LIKE ?" for _ in keywords])
-        params = [f"%{w}%" for w in keywords] + [season]
-
         rows = conn.execute(
-            f"""
+            """
             SELECT home, away, home_score, away_score
             FROM matches
             WHERE home_score IS NOT NULL
               AND away_score IS NOT NULL
               AND status IN ('FINISHED', 'MATCH FINISHED')
-              AND ({clauses})
+              AND competition_name LIKE ?
               AND season = ?
             """,
-            params,
+            (f"%{competition}%", season),
         ).fetchall()
 
         if not rows:
