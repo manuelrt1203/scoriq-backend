@@ -906,6 +906,93 @@ def evaluate_latest_placeholder():
     return ActionResponse(ok=True, message="Branche ici ton script d'évaluation depuis la base.")
 
 
+@app.get("/h2h")
+def head_to_head(home: str, away: str, limit: int = 10):
+    """Retourne les dernières confrontations directes entre deux équipes."""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT home, away, home_score, away_score, date, competition_name, season
+            FROM matches
+            WHERE home_score IS NOT NULL
+              AND away_score IS NOT NULL
+              AND status IN ('FINISHED', 'MATCH FINISHED')
+              AND (
+                (home = ? AND away = ?)
+                OR (home = ? AND away = ?)
+              )
+            ORDER BY date DESC
+            LIMIT ?
+            """,
+            (home, away, away, home, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+@app.get("/standings")
+def standings(competition: str, season: str | None = None):
+    """Calcule le classement d'une compétition à partir des matchs terminés."""
+    from datetime import date as _date
+
+    if not season:
+        today = _date.today()
+        y = today.year
+        season = f"{y}-{y + 1}" if today.month >= 7 else f"{y - 1}-{y}"
+
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT home, away, home_score, away_score
+            FROM matches
+            WHERE home_score IS NOT NULL
+              AND away_score IS NOT NULL
+              AND status IN ('FINISHED', 'MATCH FINISHED')
+              AND competition_name LIKE ?
+              AND season = ?
+            """,
+            (f"%{competition}%", season),
+        ).fetchall()
+
+        if not rows:
+            return []
+
+        teams: dict[str, dict] = {}
+        for r in rows:
+            for team, gf, ga in [
+                (r["home"], r["home_score"], r["away_score"]),
+                (r["away"], r["away_score"], r["home_score"]),
+            ]:
+                if team not in teams:
+                    teams[team] = {"team": team, "played": 0, "won": 0, "drawn": 0, "lost": 0, "gf": 0, "ga": 0}
+                t = teams[team]
+                t["played"] += 1
+                t["gf"] += gf
+                t["ga"] += ga
+                if gf > ga:
+                    t["won"] += 1
+                elif gf == ga:
+                    t["drawn"] += 1
+                else:
+                    t["lost"] += 1
+
+        result = list(teams.values())
+        for t in result:
+            t["points"] = t["won"] * 3 + t["drawn"]
+            t["gd"] = t["gf"] - t["ga"]
+
+        result.sort(key=lambda x: (-x["points"], -x["gd"], -x["gf"]))
+        for i, t in enumerate(result, 1):
+            t["rank"] = i
+
+        return result
+    finally:
+        conn.close()
+
+
 @app.get("/results/match")
 def get_match_result(home: str, away: str, season: str = "2025-2026"):
     """Interroge TheSportsDB pour le score réel d'un match donné."""
