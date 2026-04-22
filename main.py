@@ -21,6 +21,8 @@ ML_GLOBAL_HOME     = "model_home_goals_v3.pkl"
 ML_GLOBAL_AWAY     = "model_away_goals_v3.pkl"
 
 LOOKBACK = 5
+LOOKBACK_VENUE = 5
+H2H_LOOKBACK = 5
 MIN_LEAGUE_MATCHES = 3
 TARGET_COMPETITION_TYPES = ("LEAGUE", "DOMESTIC_CUP", "EUROPE", "INTERNATIONAL")
 
@@ -318,6 +320,7 @@ def build_histories_and_elo(conn: sqlite3.Connection):
             "loss": 1 if hg < ag else 0,
             "was_home": True,
             "competition_type": match["competition_type"],
+            "opponent": away_team,
         }
         away_entry = {
             "date": match["date"],
@@ -330,6 +333,7 @@ def build_histories_and_elo(conn: sqlite3.Connection):
             "loss": 1 if ag < hg else 0,
             "was_home": False,
             "competition_type": match["competition_type"],
+            "opponent": home_team,
         }
 
         team_histories.setdefault(home_team, []).append(home_entry)
@@ -395,6 +399,45 @@ def days_since_last_match(history_list: list[dict[str, Any]], before_dt: datetim
     return 99
 
 
+def get_recent_home_venue(history_list: list[dict[str, Any]], before_dt: datetime, limit: int) -> list:
+    out = []
+    for item in reversed(history_list):
+        if item["date_dt"] >= before_dt:
+            continue
+        if not item["was_home"]:
+            continue
+        out.append(item)
+        if len(out) == limit:
+            break
+    return out
+
+
+def get_recent_away_venue(history_list: list[dict[str, Any]], before_dt: datetime, limit: int) -> list:
+    out = []
+    for item in reversed(history_list):
+        if item["date_dt"] >= before_dt:
+            continue
+        if item["was_home"]:
+            continue
+        out.append(item)
+        if len(out) == limit:
+            break
+    return out
+
+
+def get_h2h(history_list: list[dict[str, Any]], opponent: str, before_dt: datetime, limit: int) -> list:
+    out = []
+    for item in reversed(history_list):
+        if item["date_dt"] >= before_dt:
+            continue
+        if item.get("opponent") != opponent:
+            continue
+        out.append(item)
+        if len(out) == limit:
+            break
+    return out
+
+
 def build_features_for_future_match(match: sqlite3.Row, team_histories, elo_state):
     match_dt = parse_date(match["date"])
     home_team = match["home"]
@@ -415,30 +458,56 @@ def build_features_for_future_match(match: sqlite3.Row, team_histories, elo_stat
     if len(home_all) < LOOKBACK or len(away_all) < LOOKBACK:
         return None
     if match["competition_type"] != "INTERNATIONAL" and (
-    len(home_league) < MIN_LEAGUE_MATCHES or len(away_league) < MIN_LEAGUE_MATCHES
-):      return None
+        len(home_league) < MIN_LEAGUE_MATCHES or len(away_league) < MIN_LEAGUE_MATCHES
+    ):
+        return None
+
+    # Venue-specific histories (independent from general last-5)
+    home_spec = get_recent_home_venue(home_hist, match_dt, LOOKBACK_VENUE)
+    away_spec = get_recent_away_venue(away_hist, match_dt, LOOKBACK_VENUE)
+
+    # H2H
+    h2h = get_h2h(home_hist, away_team, match_dt, H2H_LOOKBACK)
+
+    # General form stats
+    home_all_scored_avg   = avg([x["goals_for"]    for x in home_all])
+    home_all_conceded_avg = avg([x["goals_against"] for x in home_all])
+    away_all_scored_avg   = avg([x["goals_for"]    for x in away_all])
+    away_all_conceded_avg = avg([x["goals_against"] for x in away_all])
     home_points_all = sum(x["points"] for x in home_all)
     away_points_all = sum(x["points"] for x in away_all)
+
+    # League form stats
+    home_league_scored_avg   = avg([x["goals_for"]    for x in home_league])
+    home_league_conceded_avg = avg([x["goals_against"] for x in home_league])
+    away_league_scored_avg   = avg([x["goals_for"]    for x in away_league])
+    away_league_conceded_avg = avg([x["goals_against"] for x in away_league])
     home_points_league = sum(x["points"] for x in home_league)
     away_points_league = sum(x["points"] for x in away_league)
 
-    home_all_scored_avg = avg([x["goals_for"] for x in home_all])
-    away_all_scored_avg = avg([x["goals_for"] for x in away_all])
-    home_all_conceded_avg = avg([x["goals_against"] for x in home_all])
-    away_all_conceded_avg = avg([x["goals_against"] for x in away_all])
+    # Venue-specific stats (last 5 home / last 5 away — independent lookups)
+    h_home_scored   = avg([x["goals_for"]    for x in home_spec])
+    h_home_conceded = avg([x["goals_against"] for x in home_spec])
+    h_home_points   = sum(x["points"] for x in home_spec)
+    h_home_wins     = sum(x["win"]    for x in home_spec)
 
-    home_league_scored_avg = avg([x["goals_for"] for x in home_league])
-    away_league_scored_avg = avg([x["goals_for"] for x in away_league])
-    home_league_conceded_avg = avg([x["goals_against"] for x in home_league])
-    away_league_conceded_avg = avg([x["goals_against"] for x in away_league])
+    a_away_scored   = avg([x["goals_for"]    for x in away_spec])
+    a_away_conceded = avg([x["goals_against"] for x in away_spec])
+    a_away_points   = sum(x["points"] for x in away_spec)
+    a_away_wins     = sum(x["win"]    for x in away_spec)
 
+    # H2H stats
+    h2h_n     = len(h2h)
+    h2h_wins  = sum(x["win"]  for x in h2h)
+    h2h_draws = sum(x["draw"] for x in h2h)
+    h2h_loss  = sum(x["loss"] for x in h2h)
+    h2h_scored   = avg([x["goals_for"]    for x in h2h])
+    h2h_conceded = avg([x["goals_against"] for x in h2h])
+    h2h_points   = sum(x["points"] for x in h2h)
+
+    # Rest days
     home_rest_days = days_since_last_match(home_hist, match_dt)
     away_rest_days = days_since_last_match(away_hist, match_dt)
-
-    home_attack_home = avg([x["goals_for"] for x in home_all if x["was_home"]])
-    home_defense_home = avg([x["goals_against"] for x in home_all if x["was_home"]])
-    away_attack_away = avg([x["goals_for"] for x in away_all if not x["was_home"]])
-    away_defense_away = avg([x["goals_against"] for x in away_all if not x["was_home"]])
 
     return {
         "match_id": match["id"],
@@ -451,52 +520,85 @@ def build_features_for_future_match(match: sqlite3.Row, team_histories, elo_stat
         "date": match["date"],
         "home_team": home_team,
         "away_team": away_team,
-        "home_all_last5_scored_avg": home_all_scored_avg,
+
+        # General form
+        "home_all_last5_scored_avg":   home_all_scored_avg,
         "home_all_last5_conceded_avg": home_all_conceded_avg,
         "home_all_last5_points": home_points_all,
-        "home_all_last5_wins": sum(x["win"] for x in home_all),
-        "home_all_last5_draws": sum(x["draw"] for x in home_all),
+        "home_all_last5_wins":   sum(x["win"]  for x in home_all),
+        "home_all_last5_draws":  sum(x["draw"] for x in home_all),
         "home_all_last5_losses": sum(x["loss"] for x in home_all),
-        "away_all_last5_scored_avg": away_all_scored_avg,
+
+        "away_all_last5_scored_avg":   away_all_scored_avg,
         "away_all_last5_conceded_avg": away_all_conceded_avg,
         "away_all_last5_points": away_points_all,
-        "away_all_last5_wins": sum(x["win"] for x in away_all),
-        "away_all_last5_draws": sum(x["draw"] for x in away_all),
+        "away_all_last5_wins":   sum(x["win"]  for x in away_all),
+        "away_all_last5_draws":  sum(x["draw"] for x in away_all),
         "away_all_last5_losses": sum(x["loss"] for x in away_all),
-        "home_league_last5_scored_avg": home_league_scored_avg,
+
+        # League form
+        "home_league_last5_scored_avg":   home_league_scored_avg,
         "home_league_last5_conceded_avg": home_league_conceded_avg,
         "home_league_last5_points": home_points_league,
-        "home_league_last5_wins": sum(x["win"] for x in home_league),
-        "home_league_last5_draws": sum(x["draw"] for x in home_league),
+        "home_league_last5_wins":   sum(x["win"]  for x in home_league),
+        "home_league_last5_draws":  sum(x["draw"] for x in home_league),
         "home_league_last5_losses": sum(x["loss"] for x in home_league),
-        "away_league_last5_scored_avg": away_league_scored_avg,
+
+        "away_league_last5_scored_avg":   away_league_scored_avg,
         "away_league_last5_conceded_avg": away_league_conceded_avg,
         "away_league_last5_points": away_points_league,
-        "away_league_last5_wins": sum(x["win"] for x in away_league),
-        "away_league_last5_draws": sum(x["draw"] for x in away_league),
+        "away_league_last5_wins":   sum(x["win"]  for x in away_league),
+        "away_league_last5_draws":  sum(x["draw"] for x in away_league),
         "away_league_last5_losses": sum(x["loss"] for x in away_league),
-        "home_last5_home_scored_avg": home_attack_home,
-        "home_last5_home_conceded_avg": home_defense_home,
-        "away_last5_away_scored_avg": away_attack_away,
-        "away_last5_away_conceded_avg": away_defense_away,
+
+        # Venue-specific form (naming matches training dataset)
+        "home_specific_home_scored_avg":   h_home_scored,
+        "home_specific_home_conceded_avg": h_home_conceded,
+        "home_specific_home_points": h_home_points,
+        "home_specific_home_wins":   h_home_wins,
+
+        "away_specific_away_scored_avg":   a_away_scored,
+        "away_specific_away_conceded_avg": a_away_conceded,
+        "away_specific_away_points": a_away_points,
+        "away_specific_away_wins":   a_away_wins,
+
+        # H2H
+        "h2h_n":             h2h_n,
+        "h2h_home_wins":     h2h_wins,
+        "h2h_draws":         h2h_draws,
+        "h2h_away_wins":     h2h_loss,
+        "h2h_home_scored_avg":   h2h_scored,
+        "h2h_home_conceded_avg": h2h_conceded,
+        "h2h_home_points":   h2h_points,
+        "h2h_home_win_rate": h2h_wins / h2h_n if h2h_n > 0 else 0.5,
+
+        # Rest
         "home_matches_last14d": matches_in_last_days(home_hist, match_dt, 14),
         "away_matches_last14d": matches_in_last_days(away_hist, match_dt, 14),
         "home_days_since_last_match": home_rest_days,
         "away_days_since_last_match": away_rest_days,
+
+        # ELO
         "elo_home_global": elo_state["global"][home_team],
         "elo_away_global": elo_state["global"][away_team],
         "elo_diff_global": elo_state["global"][home_team] - elo_state["global"][away_team],
-        "elo_home_home": elo_state["home"][home_team],
-        "elo_away_away": elo_state["away"][away_team],
+        "elo_home_home":   elo_state["home"][home_team],
+        "elo_away_away":   elo_state["away"][away_team],
         "elo_diff_home_away": elo_state["home"][home_team] - elo_state["away"][away_team],
-        "home_attack_vs_away_defense": home_attack_home - away_defense_away,
-        "away_attack_vs_home_defense": away_attack_away - home_defense_home,
-        "diff_all_points_last5": home_points_all - away_points_all,
-        "diff_league_points_last5": home_points_league - away_points_league,
-        "diff_all_scored_avg_last5": home_all_scored_avg - away_all_scored_avg,
-        "diff_all_conceded_avg_last5": home_all_conceded_avg - away_all_conceded_avg,
-        "diff_league_scored_avg_last5": home_league_scored_avg - away_league_scored_avg,
+
+        # Attack vs defense
+        "home_attack_vs_away_defense": h_home_scored - a_away_conceded,
+        "away_attack_vs_home_defense": a_away_scored - h_home_conceded,
+
+        # Diffs
+        "diff_all_points_last5":          home_points_all   - away_points_all,
+        "diff_league_points_last5":       home_points_league - away_points_league,
+        "diff_all_scored_avg_last5":      home_all_scored_avg   - away_all_scored_avg,
+        "diff_all_conceded_avg_last5":    home_all_conceded_avg - away_all_conceded_avg,
+        "diff_league_scored_avg_last5":   home_league_scored_avg   - away_league_scored_avg,
         "diff_league_conceded_avg_last5": home_league_conceded_avg - away_league_conceded_avg,
+        "diff_venue_scored":   h_home_scored   - a_away_scored,
+        "diff_venue_conceded": h_home_conceded - a_away_conceded,
         "diff_rest_days": home_rest_days - away_rest_days,
     }
 
