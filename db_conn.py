@@ -26,6 +26,23 @@ def _pg_ddl(sql: str) -> str:
     )
 
 
+# ── Case-insensitive dict (PostgreSQL folds column names to lowercase) ─────────
+
+class _CIRow(dict):
+    """Dict whose keys are accessible in any case (idLeague == idleague)."""
+    def __getitem__(self, key):
+        try:
+            return super().__getitem__(key)
+        except KeyError:
+            return super().__getitem__(key.lower())
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
 # ── Cursor wrapper (normalises row access) ─────────────────────────────────────
 
 class _PgCursor:
@@ -34,15 +51,15 @@ class _PgCursor:
 
     def fetchall(self):
         rows = self._cur.fetchall()
-        return [dict(r) for r in rows] if rows else []
+        return [_CIRow(r) for r in rows] if rows else []
 
     def fetchone(self):
         row = self._cur.fetchone()
-        return dict(row) if row is not None else None
+        return _CIRow(row) if row is not None else None
 
     def __iter__(self):
         for row in self._cur:
-            yield dict(row)
+            yield _CIRow(row)
 
 
 # ── Connection wrapper ─────────────────────────────────────────────────────────
