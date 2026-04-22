@@ -14,7 +14,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-DB_PATH            = "football.db"
+import db_conn
+
 DC_PARAMS_PATH     = "dixon_coles_params.json"
 CALIBRATORS_PATH   = "calibrators.pkl"
 ML_GLOBAL_HOME     = "model_home_goals_v3.pkl"
@@ -107,10 +108,8 @@ def get_ai() -> dict[str, Any]:
     return ai
 
 
-def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def get_conn() -> db_conn.Connection:
+    return db_conn.get_connection()
 
 
 def parse_date(d: str) -> datetime:
@@ -438,7 +437,7 @@ def get_h2h(history_list: list[dict[str, Any]], opponent: str, before_dt: dateti
     return out
 
 
-def build_features_for_future_match(match: sqlite3.Row, team_histories, elo_state):
+def build_features_for_future_match(match, team_histories, elo_state):
     match_dt = parse_date(match["date"])
     home_team = match["home"]
     away_team = match["away"]

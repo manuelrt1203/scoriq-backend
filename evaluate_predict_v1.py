@@ -1,6 +1,5 @@
-import sqlite3
+import db_conn
 
-DB_PATH = "football.db"
 OUTPUT_FILE = "evaluation_report_db.txt"
 
 FINISHED_STATUSES = {"FINISHED", "FT", "Match Finished", "Ended"}
@@ -15,7 +14,7 @@ def result_label(home, away):
 
 
 def ensure_predictions_table(conn):
-    conn.executescript("""
+    conn.execute_script("""
     CREATE TABLE IF NOT EXISTS predictions_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         prediction_run_date TEXT NOT NULL,
@@ -313,8 +312,7 @@ def build_global_summary(conn):
 
 
 def main():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = db_conn.get_connection()
     ensure_predictions_table(conn)
 
     # Récupérer les prédictions non évaluées ou dont le match n'était pas terminé

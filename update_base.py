@@ -1,10 +1,9 @@
-import sqlite3
 import requests
 import time
 from datetime import datetime, timedelta
 from typing import Any
 
-DB_PATH = "football.db"
+import db_conn
 API_KEY = "123"
 BASE_URL = f"https://www.thesportsdb.com/api/v1/json/{API_KEY}"
 
@@ -26,23 +25,12 @@ DEFAULT_ROUNDS_BY_TYPE = {
 }
 
 
-def connect_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def connect_db() -> db_conn.Connection:
+    return db_conn.get_connection()
 
 
-def column_exists(conn: sqlite3.Connection, table_name: str, column_name: str) -> bool:
-    cur = conn.cursor()
-    cur.execute(f"PRAGMA table_info({table_name})")
-    rows = cur.fetchall()
-    return any(r["name"] == column_name for r in rows)
-
-
-def ensure_matches_table(conn: sqlite3.Connection) -> None:
-    cur = conn.cursor()
-
-    cur.execute("""
+def ensure_matches_table(conn: db_conn.Connection) -> None:
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS matches (
             id INTEGER PRIMARY KEY,
             idLeague INTEGER,
@@ -60,18 +48,15 @@ def ensure_matches_table(conn: sqlite3.Connection) -> None:
         )
     """)
 
-    # Si la table existe déjà sans competition_country
-    if not column_exists(conn, "matches", "competition_country"):
-        cur.execute("ALTER TABLE matches ADD COLUMN competition_country TEXT")
+    if not conn.column_exists("matches", "competition_country"):
+        conn.execute("ALTER TABLE matches ADD COLUMN competition_country TEXT")
 
     conn.commit()
 
 
-def get_competitions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    cur = conn.cursor()
-
-    has_country = column_exists(conn, "competitions", "country")
-    has_rounds = column_exists(conn, "competitions", "rounds")
+def get_competitions(conn: db_conn.Connection) -> list[dict[str, Any]]:
+    has_country = conn.column_exists("competitions", "country")
+    has_rounds  = conn.column_exists("competitions", "rounds")
 
     select_cols = ["idLeague", "name", "competition_type"]
     if has_rounds:
@@ -87,8 +72,7 @@ def get_competitions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         ORDER BY name
     """
 
-    cur.execute(query)
-    rows = cur.fetchall()
+    rows = conn.execute(query).fetchall()
 
     competitions = []
     for row in rows:
@@ -279,9 +263,8 @@ def build_match_row(event: dict[str, Any], fallback_name: str, fallback_type: st
     )
 
 
-def upsert_match(conn: sqlite3.Connection, row: tuple) -> None:
-    cur = conn.cursor()
-    cur.execute("""
+def upsert_match(conn: db_conn.Connection, row: tuple) -> None:
+    conn.execute("""
         INSERT INTO matches (
             id, idLeague, season, round, date, home, away,
             home_score, away_score, status, competition_name, competition_type, competition_country
@@ -421,8 +404,9 @@ def main() -> None:
                         upsert_match(conn, row)
                         inserted_here += 1
                         total_upserted += 1
-                    except sqlite3.IntegrityError as e:
-                        print(f"  -> match ignoré (IntegrityError): {e}")
+                    except Exception as e:
+                        print(f"  -> match ignoré (erreur): {e}")
+                        conn.rollback()
                         skipped_here += 1
                         total_skipped += 1
 
@@ -447,7 +431,7 @@ def main() -> None:
         conn.close()
 
 
-def get_stale_rounds(conn: sqlite3.Connection, league_id: int) -> list[int]:
+def get_stale_rounds(conn: db_conn.Connection, league_id: int) -> list[int]:
     """Rounds in DB with status SCHEDULED but date already passed (résultats manquants)."""
     cutoff = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S")
     rows = conn.execute("""
@@ -466,7 +450,7 @@ def get_stale_rounds(conn: sqlite3.Connection, league_id: int) -> list[int]:
     return result
 
 
-def get_max_round(conn: sqlite3.Connection, league_id: int) -> int:
+def get_max_round(conn: db_conn.Connection, league_id: int) -> int:
     """Plus grand numéro de round en base pour cette ligue."""
     row = conn.execute("""
         SELECT MAX(CAST(round AS INTEGER)) as max_r FROM matches
@@ -475,7 +459,7 @@ def get_max_round(conn: sqlite3.Connection, league_id: int) -> int:
     return int(row["max_r"]) if row and row["max_r"] else 0
 
 
-def refresh_rounds(conn: sqlite3.Connection, comp: dict, rounds_to_fetch: list[int], season: str) -> int:
+def refresh_rounds(conn: db_conn.Connection, comp: dict, rounds_to_fetch: list[int], season: str) -> int:
     """Re-fetche des rounds spécifiques et met à jour la DB. Retourne le nb de matchs mis à jour."""
     updated = 0
     name = comp["name"]
@@ -497,7 +481,7 @@ def refresh_rounds(conn: sqlite3.Connection, comp: dict, rounds_to_fetch: list[i
     return updated
 
 
-def refresh_pass(conn: sqlite3.Connection, competitions: list[dict]) -> None:
+def refresh_pass(conn: db_conn.Connection, competitions: list[dict]) -> None:
     """
     Second passage après la mise à jour principale :
     1. Re-fetche les rounds SCHEDULED dont la date est passée (pour récupérer les scores).

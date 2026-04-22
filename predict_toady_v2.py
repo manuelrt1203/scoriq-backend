@@ -1,12 +1,11 @@
 import math
-import sqlite3
 import joblib
 import pandas as pd
 from datetime import datetime
 from statistics import mean
 from collections import defaultdict
 
-DB_PATH = "football.db"
+import db_conn
 
 LOOKBACK = 5
 LOOKBACK_VENUE = 5
@@ -30,7 +29,7 @@ ODDS_FILE = "bookmaker_odds_today.csv"  # optionnel
 
 
 def ensure_predictions_table(conn):
-    conn.executescript("""
+    conn.execute_script("""
     CREATE TABLE IF NOT EXISTS predictions_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         prediction_run_date TEXT NOT NULL,
@@ -810,8 +809,7 @@ def main():
         print("Aucun modèle trouvé.")
         return
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = db_conn.get_connection()
     ensure_predictions_table(conn)
 
     team_histories, elo_state = build_histories_and_elo(conn)
