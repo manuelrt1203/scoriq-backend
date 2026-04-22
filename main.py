@@ -12,6 +12,8 @@ import pandas as pd
 import requests as http_requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import BackgroundTasks
+from apscheduler.schedulers.background import BackgroundScheduler
 from pydantic import BaseModel
 
 DB_PATH            = "football.db"
@@ -40,6 +42,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _scheduled_predict_today():
+    """Appelé automatiquement chaque matin à 8h UTC par le scheduler."""
+    try:
+        print(f"[CRON] Lancement prédictions automatiques — {datetime.utcnow().isoformat()}")
+        predict_today()
+        print("[CRON] Prédictions terminées.")
+    except Exception as e:
+        print(f"[CRON] Erreur : {e}")
+
+
+@app.on_event("startup")
+def start_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(_scheduled_predict_today, "cron", hour=8, minute=0, timezone="UTC")
+    scheduler.start()
+    print("[CRON] Scheduler démarré — prédictions tous les jours à 8h00 UTC.")
 
 
 class SummaryResponse(BaseModel):
