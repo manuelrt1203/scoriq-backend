@@ -45,6 +45,19 @@ def create_pg_schema(pg):
         )
     """)
     cur.execute("""
+        CREATE TABLE IF NOT EXISTS teams (
+            id               INTEGER,
+            strTeam          TEXT,
+            idLeague         INTEGER,
+            strLeague        TEXT,
+            competition_type TEXT,
+            badge_url        TEXT,
+            strCountry       TEXT,
+            strSport         TEXT,
+            team_type        TEXT
+        )
+    """)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS predictions_history (
             id                    SERIAL PRIMARY KEY,
             prediction_run_date   TEXT NOT NULL,
@@ -144,6 +157,7 @@ def main():
     migrate_table(sqlite_conn, pg, "competitions")
     migrate_table(sqlite_conn, pg, "matches", conflict_col="id")
     migrate_table(sqlite_conn, pg, "predictions_history")
+    migrate_table(sqlite_conn, pg, "teams")
 
     sqlite_conn.close()
     pg.close()

@@ -762,6 +762,18 @@ def root():
     return {"ok": True, "message": "Pronostics API prête."}
 
 
+@app.get("/debug/db")
+def debug_db():
+    import traceback
+    try:
+        conn = get_conn()
+        count = conn.execute("SELECT COUNT(*) AS n FROM matches").fetchone()
+        conn.close()
+        return {"ok": True, "matches": count["n"], "is_pg": db_conn.DATABASE_URL is not None}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "trace": traceback.format_exc()}
+
+
 @app.get("/health")
 def health():
     return {"ok": True}
