@@ -795,10 +795,10 @@ def list_competitions():
 def stats_summary():
     conn = get_conn()
     try:
-        total_predictions = conn.execute("SELECT COUNT(*) FROM predictions_history").fetchone()[0]
+        total_predictions = conn.execute("SELECT COUNT(*) AS n FROM predictions_history").fetchone()["n"]
         evaluated_predictions = conn.execute(
-            "SELECT COUNT(*) FROM predictions_history WHERE evaluation_status = 'OK'"
-        ).fetchone()[0]
+            "SELECT COUNT(*) AS n FROM predictions_history WHERE evaluation_status = 'OK'"
+        ).fetchone()["n"]
 
         row = conn.execute(
             """
