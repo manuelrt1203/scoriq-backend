@@ -8,4 +8,3 @@ scikit-learn==1.8.0
 scipy==1.17.1
 python-dateutil==2.9.0.post0
 requests==2.33.0
-apscheduler==3.10.4

@@ -32,6 +32,9 @@ jobs:
       - name: Evaluate predictions
         run: python evaluate_predict_v1.py
 
+      - name: Generate today's predictions
+        run: python predict_toady_v2.py
+
       - name: Commit & push updated DB
         run: |
           git config user.name "github-actions[bot]"
