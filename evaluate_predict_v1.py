@@ -66,6 +66,13 @@ def ensure_predictions_table(conn):
         abs_error_total_goals REAL
     );
     """)
+    if conn.is_pg:
+        conn.execute("""
+            SELECT setval(
+                'predictions_history_id_seq',
+                COALESCE((SELECT MAX(id) FROM predictions_history), 0)
+            )
+        """)
     conn.commit()
 
 

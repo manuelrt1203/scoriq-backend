@@ -90,6 +90,14 @@ def ensure_predictions_table(conn):
     CREATE INDEX IF NOT EXISTS idx_predictions_history_match_key
     ON predictions_history(match_date, home_team, away_team);
     """)
+    # Resync PostgreSQL sequence after potential explicit-ID migration
+    if conn.is_pg:
+        conn.execute("""
+            SELECT setval(
+                'predictions_history_id_seq',
+                COALESCE((SELECT MAX(id) FROM predictions_history), 0)
+            )
+        """)
     conn.commit()
 
 
