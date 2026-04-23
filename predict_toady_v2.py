@@ -820,6 +820,15 @@ def main():
     conn = db_conn.get_connection()
     ensure_predictions_table(conn)
 
+    # Supprimer les prédictions déjà insérées pour aujourd'hui (évite les doublons si relance)
+    deleted = conn.execute(
+        "DELETE FROM predictions_history WHERE match_date = ? AND evaluation_status IS NULL",
+        (today_str,)
+    ).rowcount
+    if deleted:
+        print(f"  {deleted} prédictions existantes supprimées pour {today_str} (relance détectée)")
+    conn.commit()
+
     team_histories, elo_state = build_histories_and_elo(conn)
     matches = get_today_matches(conn)
     odds_df = load_odds()
