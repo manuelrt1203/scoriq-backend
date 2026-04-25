@@ -2,30 +2,26 @@ name: Daily DB Update
 
 on:
   schedule:
-    - cron: '0 5 * * *'   # 05:00 UTC chaque jour
-  workflow_dispatch:        # déclenchement manuel possible
+    - cron: "0 5 * * *"    # 05:00 UTC — pipeline complet
+    - cron: "30 6 * * *"   # 06:30 UTC — safety : éval + predict seulement
+  workflow_dispatch:
 
 jobs:
   update:
+    name: Update database
     runs-on: ubuntu-latest
-
+    if: github.event.schedule != '30 6 * * *'
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
+      - run: pip install -r requirements.txt
       - name: Update database (LEAGUE + DOMESTIC_CUP + EUROPE)
+        continue-on-error: true
         run: |
           python - <<'EOF'
           import update_base
@@ -33,9 +29,21 @@ jobs:
           update_base.main()
           EOF
 
+  evaluate_and_predict:
+    name: Evaluate & Predict
+    runs-on: ubuntu-latest
+    needs: [update]
+    if: always()
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -r requirements.txt
       - name: Evaluate predictions
         run: python evaluate_predict_v1.py
-
       - name: Generate today's predictions
         run: python predict_toady_v2.py
-
