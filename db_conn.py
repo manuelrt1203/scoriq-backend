@@ -49,6 +49,10 @@ class _PgCursor:
     def __init__(self, cur):
         self._cur = cur
 
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
     def fetchall(self):
         rows = self._cur.fetchall()
         return [_CIRow(r) for r in rows] if rows else []
