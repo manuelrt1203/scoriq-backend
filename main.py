@@ -1005,8 +1005,46 @@ def top_picks(limit: int = 5):
 
 
 @app.post("/evaluate/latest", response_model=ActionResponse)
-def evaluate_latest_placeholder():
-    return ActionResponse(ok=True, message="Branche ici ton script d'évaluation depuis la base.")
+def evaluate_latest():
+    import evaluate_predict_v1 as ev
+    conn = get_conn()
+    try:
+        ev.ensure_predictions_table(conn)
+        pending = conn.execute("""
+            SELECT *
+            FROM predictions_history
+            WHERE evaluation_status IS NULL
+               OR evaluation_status IN ('MATCH_NOT_FINISHED', 'REAL_RESULT_NOT_FOUND')
+            ORDER BY match_date, id
+        """).fetchall()
+
+        if not pending:
+            return ActionResponse(ok=True, message="Toutes les prédictions sont déjà évaluées.")
+
+        evaluated = 0
+        not_finished = 0
+        not_found = 0
+        for row in pending:
+            detail = ev.evaluate_prediction_row(conn, row)
+            if detail is not None:
+                evaluated += 1
+            else:
+                updated = conn.execute(
+                    "SELECT evaluation_status FROM predictions_history WHERE id = ?",
+                    (row["id"],)
+                ).fetchone()
+                status = updated["evaluation_status"] if updated else ""
+                if status == "MATCH_NOT_FINISHED":
+                    not_finished += 1
+                elif status == "REAL_RESULT_NOT_FOUND":
+                    not_found += 1
+        conn.commit()
+        return ActionResponse(
+            ok=True,
+            message=f"Évalués: {evaluated} | Non terminés: {not_finished} | Introuvables: {not_found}"
+        )
+    finally:
+        conn.close()
 
 
 @app.get("/h2h")
