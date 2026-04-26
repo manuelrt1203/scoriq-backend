@@ -1004,8 +1004,8 @@ def top_picks(limit: int = 5):
         conn.close()
 
 
-def _fetch_score_from_sportsdb(home: str, away: str, season: str = "2025-2026") -> dict | None:
-    """Retourne le score depuis TheSportsDB si le match est terminé, sinon None."""
+def _fetch_score_from_sportsdb(home: str, away: str, expected_date: str, season: str = "2025-2026") -> dict | None:
+    """Retourne le score depuis TheSportsDB si le match est terminé et que la date correspond."""
     try:
         resp = http_requests.get(
             "https://www.thesportsdb.com/api/v1/json/123/searchevents.php",
@@ -1015,10 +1015,15 @@ def _fetch_score_from_sportsdb(home: str, away: str, season: str = "2025-2026") 
         events = resp.json().get("event") or []
         if not events:
             return None
-        ev = events[0]
+        # Chercher l'événement dont la date correspond exactement
+        ev = next(
+            (e for e in events if str(e.get("dateEvent", "")).startswith(expected_date)),
+            None
+        )
+        if ev is None:
+            return None
         h_score = ev.get("intHomeScore")
         a_score = ev.get("intAwayScore")
-        status = str(ev.get("strStatus", "")).strip()
         if h_score is None or a_score is None:
             return None
         return {"home_score": int(h_score), "away_score": int(a_score), "status": "FINISHED"}
@@ -1046,7 +1051,7 @@ def evaluate_latest():
         # Pour chaque match en attente, tenter de mettre à jour la table matches
         # depuis TheSportsDB si le score n'y est pas encore
         for row in pending:
-            score = _fetch_score_from_sportsdb(row["home_team"], row["away_team"])
+            score = _fetch_score_from_sportsdb(row["home_team"], row["away_team"], row["match_date"])
             if score:
                 conn.execute("""
                     UPDATE matches
