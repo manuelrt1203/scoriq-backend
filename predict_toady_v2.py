@@ -820,9 +820,9 @@ def main():
     conn = db_conn.get_connection()
     ensure_predictions_table(conn)
 
-    # Supprimer les prédictions déjà insérées pour aujourd'hui (évite les doublons si relance)
+    # Supprimer toutes les prédictions du jour avant réinsertion (évaluées ou non)
     deleted = conn.execute(
-        "DELETE FROM predictions_history WHERE match_date = ? AND evaluation_status IS NULL",
+        "DELETE FROM predictions_history WHERE match_date = ?",
         (today_str,)
     ).rowcount
     if deleted:
