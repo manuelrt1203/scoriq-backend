@@ -1004,6 +1004,28 @@ def top_picks(limit: int = 5):
         conn.close()
 
 
+def _fetch_score_from_sportsdb(home: str, away: str, season: str = "2025-2026") -> dict | None:
+    """Retourne le score depuis TheSportsDB si le match est terminé, sinon None."""
+    try:
+        resp = http_requests.get(
+            "https://www.thesportsdb.com/api/v1/json/123/searchevents.php",
+            params={"e": f"{home} vs {away}", "s": season},
+            timeout=10,
+        )
+        events = resp.json().get("event") or []
+        if not events:
+            return None
+        ev = events[0]
+        h_score = ev.get("intHomeScore")
+        a_score = ev.get("intAwayScore")
+        status = str(ev.get("strStatus", "")).strip()
+        if h_score is None or a_score is None:
+            return None
+        return {"home_score": int(h_score), "away_score": int(a_score), "status": "FINISHED"}
+    except Exception:
+        return None
+
+
 @app.post("/evaluate/latest", response_model=ActionResponse)
 def evaluate_latest():
     import evaluate_predict_v1 as ev
@@ -1020,6 +1042,23 @@ def evaluate_latest():
 
         if not pending:
             return ActionResponse(ok=True, message="Toutes les prédictions sont déjà évaluées.")
+
+        # Pour chaque match en attente, tenter de mettre à jour la table matches
+        # depuis TheSportsDB si le score n'y est pas encore
+        for row in pending:
+            score = _fetch_score_from_sportsdb(row["home_team"], row["away_team"])
+            if score:
+                conn.execute("""
+                    UPDATE matches
+                    SET home_score = ?, away_score = ?, status = ?
+                    WHERE lower(trim(home)) = lower(trim(?))
+                      AND lower(trim(away)) = lower(trim(?))
+                      AND substr(date, 1, 10) = ?
+                """, (
+                    score["home_score"], score["away_score"], score["status"],
+                    row["home_team"], row["away_team"], row["match_date"],
+                ))
+        conn.commit()
 
         evaluated = 0
         not_finished = 0
