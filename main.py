@@ -23,6 +23,7 @@ ML_GLOBAL_AWAY     = "model_away_goals_v3.pkl"
 
 LOOKBACK = 5
 LOOKBACK_VENUE = 5
+LOOKBACK_DRAW = 10
 H2H_LOOKBACK = 5
 MIN_LEAGUE_MATCHES = 3
 TARGET_COMPETITION_TYPES = ("LEAGUE", "DOMESTIC_CUP", "EUROPE", "INTERNATIONAL")
@@ -508,6 +509,23 @@ def build_features_for_future_match(match, team_histories, elo_state):
     home_rest_days = days_since_last_match(home_hist, match_dt)
     away_rest_days = days_since_last_match(away_hist, match_dt)
 
+    # Draw-specific features (window of 10)
+    h_last10      = get_recent_history(home_hist, match_dt, LOOKBACK_DRAW)
+    a_last10      = get_recent_history(away_hist, match_dt, LOOKBACK_DRAW)
+    h_home_last10 = get_recent_home_venue(home_hist, match_dt, LOOKBACK_DRAW)
+    a_away_last10 = get_recent_away_venue(away_hist, match_dt, LOOKBACK_DRAW)
+
+    home_draw_rate_last10      = sum(x["draw"] for x in h_last10) / len(h_last10) if h_last10 else 0.25
+    away_draw_rate_last10      = sum(x["draw"] for x in a_last10) / len(a_last10) if a_last10 else 0.25
+    home_draw_rate_home_last10 = sum(x["draw"] for x in h_home_last10) / len(h_home_last10) if h_home_last10 else 0.25
+    away_draw_rate_away_last10 = sum(x["draw"] for x in a_away_last10) / len(a_away_last10) if a_away_last10 else 0.25
+    home_clean_sheet_last10    = sum(1 for x in h_last10 if x["goals_against"] == 0) / len(h_last10) if h_last10 else 0.0
+    away_clean_sheet_last10    = sum(1 for x in a_last10 if x["goals_against"] == 0) / len(a_last10) if a_last10 else 0.0
+    home_no_score_last10       = sum(1 for x in h_last10 if x["goals_for"] == 0) / len(h_last10) if h_last10 else 0.0
+    away_no_score_last10       = sum(1 for x in a_last10 if x["goals_for"] == 0) / len(a_last10) if a_last10 else 0.0
+    h2h_draw_rate              = sum(x["draw"] for x in h2h) / h2h_n if h2h_n > 0 else 0.25
+    draw_propensity            = (home_draw_rate_last10 + away_draw_rate_last10) / 2
+
     return {
         "match_id": match["id"],
         "idLeague": match["idLeague"],
@@ -599,6 +617,18 @@ def build_features_for_future_match(match, team_histories, elo_state):
         "diff_venue_scored":   h_home_scored   - a_away_scored,
         "diff_venue_conceded": h_home_conceded - a_away_conceded,
         "diff_rest_days": home_rest_days - away_rest_days,
+
+        # Draw features (v6)
+        "home_draw_rate_last10":      home_draw_rate_last10,
+        "away_draw_rate_last10":      away_draw_rate_last10,
+        "home_draw_rate_home_last10": home_draw_rate_home_last10,
+        "away_draw_rate_away_last10": away_draw_rate_away_last10,
+        "home_clean_sheet_last10":    home_clean_sheet_last10,
+        "away_clean_sheet_last10":    away_clean_sheet_last10,
+        "home_no_score_last10":       home_no_score_last10,
+        "away_no_score_last10":       away_no_score_last10,
+        "h2h_draw_rate":              h2h_draw_rate,
+        "draw_propensity":            draw_propensity,
     }
 
 
