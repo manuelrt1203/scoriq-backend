@@ -793,6 +793,71 @@ def derive_markets_from_poisson(home_lambda: float, away_lambda: float, rho: flo
     }
 
 
+@app.get("/odds/value-bets")
+def value_bets():
+    """Value bets : matchs où ScorIQ est plus optimiste que les bookmakers."""
+    conn = db_conn.get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT
+                p.match_date, p.home_team, p.away_team, p.competition_name,
+                p.proba_home_win, p.proba_draw, p.proba_away_win,
+                p.trust_level,
+                MAX(o.odds_home) as best_odds_home,
+                MAX(o.odds_draw) as best_odds_draw,
+                MAX(o.odds_away) as best_odds_away,
+                AVG(o.implied_home) as impl_home,
+                AVG(o.implied_draw) as impl_draw,
+                AVG(o.implied_away) as impl_away
+            FROM predictions_history p
+            JOIN odds o
+              ON o.match_date = substr(p.match_date, 1, 10)
+             AND o.home_team = p.home_team
+             AND o.away_team = p.away_team
+            WHERE p.real_result IS NULL
+            GROUP BY p.match_date, p.home_team, p.away_team, p.competition_name,
+                     p.proba_home_win, p.proba_draw, p.proba_away_win, p.trust_level
+            ORDER BY p.match_date, p.home_team
+        """).fetchall()
+    finally:
+        conn.close()
+
+    results = []
+    for r in rows:
+        ph = r["proba_home_win"] or 0
+        pd_ = r["proba_draw"] or 0
+        pa = r["proba_away_win"] or 0
+        ih = r["impl_home"] or 0
+        id_ = r["impl_draw"] or 0
+        ia = r["impl_away"] or 0
+
+        value_h = round(ph - ih, 3)
+        value_d = round(pd_ - id_, 3)
+        value_a = round(pa - ia, 3)
+        best = max([(value_h, "home", r["best_odds_home"]),
+                    (value_d, "draw", r["best_odds_draw"]),
+                    (value_a, "away", r["best_odds_away"])], key=lambda x: x[0])
+
+        if best[0] < 0.03:
+            continue
+
+        results.append({
+            "match_date":     r["match_date"],
+            "home_team":      r["home_team"],
+            "away_team":      r["away_team"],
+            "competition":    r["competition_name"],
+            "trust_level":    r["trust_level"],
+            "scoriq_home":    round(ph, 3),
+            "scoriq_draw":    round(pd_, 3),
+            "scoriq_away":    round(pa, 3),
+            "best_value_on":  best[1],
+            "value_edge":     best[0],
+            "best_odds":      best[2],
+        })
+
+    return {"value_bets": results, "count": len(results)}
+
+
 class NewUserPayload(BaseModel):
     email: str
     signup_ip: str | None = None
