@@ -961,6 +961,46 @@ def stats_summary():
         conn.close()
 
 
+@app.get("/stats/by-competition")
+def stats_by_competition():
+    conn = get_conn()
+    try:
+        rows = conn.execute("""
+            SELECT
+                competition_name,
+                competition_type,
+                COUNT(*)                                                    AS total,
+                SUM(CASE WHEN evaluation_status = 'OK' THEN 1 ELSE 0 END)  AS evaluated,
+                AVG(CASE WHEN evaluation_status = 'OK' THEN is_correct_1x2    END) AS accuracy_1x2,
+                AVG(CASE WHEN evaluation_status = 'OK' THEN is_correct_btts   END) AS accuracy_btts,
+                AVG(CASE WHEN evaluation_status = 'OK' THEN is_correct_over_2_5 END) AS accuracy_over_2_5,
+                AVG(CASE WHEN evaluation_status = 'OK' THEN abs_error_total_goals END) AS mae_goals,
+                SUM(CASE WHEN evaluation_status = 'OK' AND trust_level = 'FORTE' THEN 1 ELSE 0 END) AS forte_total,
+                AVG(CASE WHEN evaluation_status = 'OK' AND trust_level = 'FORTE' THEN is_correct_1x2 END) AS forte_accuracy
+            FROM predictions_history
+            GROUP BY competition_name, competition_type
+            HAVING COUNT(*) >= 3
+            ORDER BY evaluated DESC, total DESC
+        """).fetchall()
+        return [
+            {
+                "competition_name":  r["competition_name"],
+                "competition_type":  r["competition_type"],
+                "total":             r["total"],
+                "evaluated":         r["evaluated"],
+                "accuracy_1x2":      round(r["accuracy_1x2"] * 100, 1) if r["accuracy_1x2"] is not None else None,
+                "accuracy_btts":     round(r["accuracy_btts"] * 100, 1) if r["accuracy_btts"] is not None else None,
+                "accuracy_over_2_5": round(r["accuracy_over_2_5"] * 100, 1) if r["accuracy_over_2_5"] is not None else None,
+                "mae_goals":         round(r["mae_goals"], 2) if r["mae_goals"] is not None else None,
+                "forte_total":       r["forte_total"],
+                "forte_accuracy":    round(r["forte_accuracy"] * 100, 1) if r["forte_accuracy"] is not None else None,
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
 @app.get("/predictions/history")
 def predictions_history(limit: int = 100, offset: int = 0, only_evaluated: bool = True):
     conn = get_conn()
