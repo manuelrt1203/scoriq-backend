@@ -44,6 +44,9 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r requirements.txt
+      - name: Fetch shots data (proxy xG)
+        continue-on-error: true
+        run: python fetch_shots.py
       - name: Fetch bookmaker odds
         continue-on-error: true
         run: python fetch_odds.py
