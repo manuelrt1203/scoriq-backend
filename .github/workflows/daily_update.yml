@@ -2,15 +2,15 @@ name: Daily DB Update
 
 on:
   schedule:
-    - cron: "0 5 * * *"    # 05:00 UTC — pipeline complet
-    - cron: "30 6 * * *"   # 06:30 UTC — safety : éval + predict seulement
+    - cron: "0 3 * * *"    # 03:00 UTC = 05:00 heure française — pipeline complet
+    - cron: "30 5 * * *"   # 05:30 UTC = 07:30 heure française — safety : éval + predict seulement
   workflow_dispatch:
 
 jobs:
   update:
     name: Update database
     runs-on: ubuntu-latest
-    if: github.event.schedule != '30 6 * * *'
+    if: github.event.schedule != '30 5 * * *'
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
