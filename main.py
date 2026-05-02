@@ -966,19 +966,33 @@ def stats_by_competition():
     conn = get_conn()
     try:
         rows = conn.execute("""
+            WITH normalized AS (
+                SELECT *,
+                    CASE competition_name
+                        WHEN 'German Bundesliga'    THEN 'Bundesliga'
+                        WHEN 'English Premier League' THEN 'Premier League'
+                        WHEN 'French Ligue 1'       THEN 'Ligue 1'
+                        WHEN 'Italian Serie A'      THEN 'Serie A'
+                        WHEN 'Spanish La Liga'      THEN 'La Liga'
+                        WHEN 'Dutch Eredivisie'     THEN 'Eredivisie'
+                        WHEN 'DFB-Pokal'            THEN 'DFB Pokal'
+                        ELSE competition_name
+                    END AS comp_norm
+                FROM predictions_history
+            )
             SELECT
-                competition_name,
-                competition_type,
-                COUNT(*)                                                    AS total,
-                SUM(CASE WHEN evaluation_status = 'OK' THEN 1 ELSE 0 END)  AS evaluated,
+                comp_norm                                                        AS competition_name,
+                MAX(competition_type)                                            AS competition_type,
+                COUNT(*)                                                         AS total,
+                SUM(CASE WHEN evaluation_status = 'OK' THEN 1 ELSE 0 END)       AS evaluated,
                 AVG(CASE WHEN evaluation_status = 'OK' THEN is_correct_1x2    END) AS accuracy_1x2,
                 AVG(CASE WHEN evaluation_status = 'OK' THEN is_correct_btts   END) AS accuracy_btts,
                 AVG(CASE WHEN evaluation_status = 'OK' THEN is_correct_over_2_5 END) AS accuracy_over_2_5,
                 AVG(CASE WHEN evaluation_status = 'OK' THEN abs_error_total_goals END) AS mae_goals,
                 SUM(CASE WHEN evaluation_status = 'OK' AND trust_level = 'FORTE' THEN 1 ELSE 0 END) AS forte_total,
                 AVG(CASE WHEN evaluation_status = 'OK' AND trust_level = 'FORTE' THEN is_correct_1x2 END) AS forte_accuracy
-            FROM predictions_history
-            GROUP BY competition_name, competition_type
+            FROM normalized
+            GROUP BY comp_norm
             HAVING COUNT(*) >= 3
             ORDER BY evaluated DESC, total DESC
         """).fetchall()
