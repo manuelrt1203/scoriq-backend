@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import math
+import os
+import smtplib
 import sqlite3
 from collections import defaultdict
 from datetime import datetime
+from email.mime.text import MIMEText
 from statistics import mean
 from typing import Any
 
@@ -13,6 +16,9 @@ import requests as http_requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+GMAIL_USER     = os.environ.get("GMAIL_USER", "manuelrt1203@gmail.com")
+GMAIL_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 
 import db_conn
 
@@ -785,6 +791,41 @@ def derive_markets_from_poisson(home_lambda: float, away_lambda: float, rho: flo
         "score_coherent": score_coherent,
         "top3_scores": top3_scores,
     }
+
+
+class NewUserPayload(BaseModel):
+    email: str
+    signup_ip: str | None = None
+    country: str | None = None
+    city: str | None = None
+
+
+@app.post("/notify/new-user")
+def notify_new_user(payload: NewUserPayload):
+    if not GMAIL_PASSWORD:
+        return {"ok": False, "reason": "GMAIL_APP_PASSWORD non configuré"}
+    try:
+        now = datetime.now().strftime("%d/%m/%Y à %H:%M")
+        body = (
+            f"🎉 Nouvel inscrit sur ScorIQ !\n\n"
+            f"Email   : {payload.email}\n"
+            f"Pays    : {payload.country or '—'}\n"
+            f"Ville   : {payload.city or '—'}\n"
+            f"IP      : {payload.signup_ip or '—'}\n"
+            f"Date    : {now}\n"
+        )
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = f"[ScorIQ] Nouvel inscrit — {payload.email}"
+        msg["From"]    = GMAIL_USER
+        msg["To"]      = GMAIL_USER
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(GMAIL_USER, GMAIL_PASSWORD)
+            smtp.send_message(msg)
+
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "reason": str(e)}
 
 
 @app.get("/")
