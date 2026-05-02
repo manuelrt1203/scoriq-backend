@@ -155,15 +155,29 @@ def competition_type_code(comp_type):
 def get_finished_matches(conn):
     placeholders = ",".join("?" for _ in TARGET_COMPETITION_TYPES)
     return conn.execute(f"""
+        WITH sdb_rounds AS (
+            SELECT DISTINCT idLeague, season, round
+            FROM matches
+            WHERE source = 'thesportsdb'
+        )
         SELECT
-            id, idLeague, season, round, date, home, away,
-            home_score, away_score, status, competition_type, competition_name
-        FROM matches
-        WHERE status = 'FINISHED'
-          AND home_score IS NOT NULL
-          AND away_score IS NOT NULL
-          AND competition_type IN ({placeholders})
-        ORDER BY date, round, id
+            m.id, m.idLeague, m.season, m.round, m.date, m.home, m.away,
+            m.home_score, m.away_score, m.status, m.competition_type, m.competition_name
+        FROM matches m
+        WHERE m.status = 'FINISHED'
+          AND m.home_score IS NOT NULL
+          AND m.away_score IS NOT NULL
+          AND m.competition_type IN ({placeholders})
+          AND (
+              COALESCE(m.source, 'thesportsdb') = 'thesportsdb'
+              OR NOT EXISTS (
+                  SELECT 1 FROM sdb_rounds s
+                  WHERE s.idLeague = m.idLeague
+                    AND s.season   = m.season
+                    AND (s.round = m.round OR (s.round IS NULL AND m.round IS NULL))
+              )
+          )
+        ORDER BY m.date, m.round, m.id
     """, TARGET_COMPETITION_TYPES).fetchall()
 
 
