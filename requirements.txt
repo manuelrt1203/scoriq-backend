@@ -6,6 +6,7 @@ joblib==1.5.3
 pandas==3.0.1
 numpy==2.4.3
 scikit-learn==1.8.0
+lightgbm==4.6.0
 scipy==1.17.1
 python-dateutil==2.9.0.post0
 requests==2.33.0
