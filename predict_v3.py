@@ -690,11 +690,18 @@ def main():
         ORDER BY m.date, m.id
     """, TARGET_COMPETITION_TYPES + (target_date,)).fetchall()
 
-    shots_rows = conn.execute(
-        "SELECT match_date, home_team, away_team, home_sot, away_sot FROM shots_data"
-    ).fetchall()
-    shots_index = {(r["match_date"][:10], r["home_team"], r["away_team"]): (r["home_sot"], r["away_sot"])
-                   for r in shots_rows}
+    try:
+        shots_rows = conn.execute(
+            "SELECT match_date, home_team, away_team, home_sot, away_sot FROM shots_data"
+        ).fetchall()
+        shots_index = {(r["match_date"][:10], r["home_team"], r["away_team"]): (r["home_sot"], r["away_sot"])
+                       for r in shots_rows}
+        print(f"Shots data : {len(shots_index)} matchs", flush=True)
+    except Exception as e:
+        print(f"shots_data indisponible ({e}) — SOT features à zéro", flush=True)
+        shots_index = {}
+        if conn.is_pg:
+            conn.rollback()
 
     league_stats_rows = conn.execute("""
         SELECT idLeague,
