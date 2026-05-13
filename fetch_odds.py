@@ -138,6 +138,12 @@ def ensure_table(conn: db_conn.Connection) -> None:
             implied_home    REAL,
             implied_draw    REAL,
             implied_away    REAL,
+            odds_over_1_5   REAL,
+            odds_under_1_5  REAL,
+            odds_over_2_5   REAL,
+            odds_under_2_5  REAL,
+            odds_btts_yes   REAL,
+            odds_btts_no    REAL,
             fetched_at      TEXT,
             UNIQUE(match_id, bookmaker)
         );
@@ -154,7 +160,7 @@ def fetch_sport_odds(sport_key: str) -> list[dict]:
             params={
                 "apiKey":      API_KEY,
                 "regions":     "eu",
-                "markets":     "h2h",
+                "markets":     "h2h,totals,btts",
                 "oddsFormat":  "decimal",
                 "dateFormat":  "iso",
             },
@@ -208,13 +214,31 @@ def best_odds(match: dict) -> dict | None:
     }
 
 
+def _parse_totals(market: dict) -> tuple:
+    """Extrait Over/Under 1.5 et 2.5 d'un marché totals."""
+    o15 = u15 = o25 = u25 = None
+    for outcome in market.get("outcomes", []):
+        name = outcome["name"]   # "Over" ou "Under"
+        pt   = outcome.get("point")
+        price = outcome["price"]
+        if pt == 1.5:
+            if name == "Over":  o15 = price
+            else:               u15 = price
+        elif pt == 2.5:
+            if name == "Over":  o25 = price
+            else:               u25 = price
+    return o15, u15, o25, u25
+
+
 def upsert_odds(conn: db_conn.Connection, match: dict, id_league: int) -> int:
     fetched_at = datetime.now().isoformat()
     match_date = match["commence_time"][:10]
     inserted = 0
 
     for book in match.get("bookmakers", []):
-        h2h = next((m for m in book["markets"] if m["key"] == "h2h"), None)
+        markets_by_key = {m["key"]: m for m in book.get("markets", [])}
+
+        h2h = markets_by_key.get("h2h")
         if not h2h:
             continue
         outcomes = {o["name"]: o["price"] for o in h2h["outcomes"]}
@@ -230,22 +254,40 @@ def upsert_odds(conn: db_conn.Connection, match: dict, id_league: int) -> int:
         id_ = (1/od) / total
         ia = (1/oa) / total
 
+        # Over/Under 1.5 et 2.5
+        o15, u15, o25, u25 = (None,) * 4
+        if "totals" in markets_by_key:
+            o15, u15, o25, u25 = _parse_totals(markets_by_key["totals"])
+
+        # BTTS
+        btts_yes = btts_no = None
+        if "btts" in markets_by_key:
+            btts_outcomes = {o["name"]: o["price"] for o in markets_by_key["btts"].get("outcomes", [])}
+            btts_yes = btts_outcomes.get("Yes")
+            btts_no  = btts_outcomes.get("No")
+
         conn.execute("""
             INSERT INTO odds (
                 match_id, idLeague, match_date, home_team, away_team,
                 bookmaker, odds_home, odds_draw, odds_away,
-                implied_home, implied_draw, implied_away, fetched_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                implied_home, implied_draw, implied_away,
+                odds_over_1_5, odds_under_1_5, odds_over_2_5, odds_under_2_5,
+                odds_btts_yes, odds_btts_no, fetched_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(match_id, bookmaker) DO UPDATE SET
                 odds_home=excluded.odds_home, odds_draw=excluded.odds_draw,
                 odds_away=excluded.odds_away, implied_home=excluded.implied_home,
                 implied_draw=excluded.implied_draw, implied_away=excluded.implied_away,
+                odds_over_1_5=excluded.odds_over_1_5, odds_under_1_5=excluded.odds_under_1_5,
+                odds_over_2_5=excluded.odds_over_2_5, odds_under_2_5=excluded.odds_under_2_5,
+                odds_btts_yes=excluded.odds_btts_yes, odds_btts_no=excluded.odds_btts_no,
                 fetched_at=excluded.fetched_at
         """, (
             match["id"], id_league, match_date,
             normalize_team(match["home_team"]),
             normalize_team(match["away_team"]),
-            book["key"], oh, od, oa, ih, id_, ia, fetched_at
+            book["key"], oh, od, oa, ih, id_, ia,
+            o15, u15, o25, u25, btts_yes, btts_no, fetched_at
         ))
         inserted += 1
 

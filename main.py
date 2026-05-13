@@ -827,7 +827,8 @@ def odds_for_match(home: str, away: str, date: str):
     conn = db_conn.get_connection()
     try:
         rows = conn.execute("""
-            SELECT bookmaker, odds_home, odds_draw, odds_away
+            SELECT bookmaker, odds_home, odds_draw, odds_away,
+                   odds_over_1_5, odds_over_2_5, odds_btts_yes
             FROM odds
             WHERE match_date = ?
               AND home_team  = ?
@@ -848,12 +849,15 @@ def odds_for_match(home: str, away: str, date: str):
         avg = (r["odds_home"] + r["odds_draw"] + r["odds_away"]) / 3
         if label not in best or avg > best[label]["_avg"]:
             best[label] = {
-                "bookmaker": r["bookmaker"],
-                "label":     label,
-                "odds_home": round(r["odds_home"], 2),
-                "odds_draw": round(r["odds_draw"], 2),
-                "odds_away": round(r["odds_away"], 2),
-                "_avg":      avg,
+                "bookmaker":     r["bookmaker"],
+                "label":         label,
+                "odds_home":     round(r["odds_home"], 2),
+                "odds_draw":     round(r["odds_draw"], 2),
+                "odds_away":     round(r["odds_away"], 2),
+                "odds_over_1_5": round(r["odds_over_1_5"], 2) if r["odds_over_1_5"] else None,
+                "odds_over_2_5": round(r["odds_over_2_5"], 2) if r["odds_over_2_5"] else None,
+                "odds_btts_yes": round(r["odds_btts_yes"], 2) if r["odds_btts_yes"] else None,
+                "_avg":          avg,
             }
 
     # Trier selon la priorité définie
