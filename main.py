@@ -793,6 +793,79 @@ def derive_markets_from_poisson(home_lambda: float, away_lambda: float, rho: flo
     }
 
 
+BOOKMAKER_LABELS = {
+    "winamax_fr":    "Winamax",
+    "winamax_de":    "Winamax",
+    "betclic_fr":    "Betclic",
+    "unibet_fr":     "Unibet",
+    "unibet_nl":     "Unibet",
+    "unibet_se":     "Unibet",
+    "bet365":        "Bet365",
+    "williamhill":   "William Hill",
+    "pinnacle":      "Pinnacle",
+    "pmu_fr":        "PMU",
+    "leovegas_se":   "LeoVegas",
+    "betsson":       "Betsson",
+    "nordicbet":     "NordicBet",
+    "marathonbet":   "Marathonbet",
+    "onexbet":       "1xBet",
+    "betfair_ex_eu": "Betfair",
+    "tipico_de":     "Tipico",
+    "coolbet":       "Coolbet",
+    "sport888":      "888sport",
+}
+
+BOOKMAKER_PRIORITY = [
+    "winamax_fr", "betclic_fr", "unibet_fr", "bet365", "williamhill",
+    "pinnacle", "pmu_fr", "betfair_ex_eu", "marathonbet", "onexbet",
+    "leovegas_se", "betsson", "nordicbet", "tipico_de", "sport888",
+]
+
+
+@app.get("/odds/for-match")
+def odds_for_match(home: str, away: str, date: str):
+    conn = db_conn.get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT bookmaker, odds_home, odds_draw, odds_away
+            FROM odds
+            WHERE match_date = ?
+              AND home_team  = ?
+              AND away_team  = ?
+            ORDER BY bookmaker
+        """, (date[:10], home, away)).fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        return {"bookmakers": []}
+
+    # Dédoublonner : pour les clés du même bookmaker (ex. winamax_fr / winamax_de)
+    # garder la meilleure cote globale par label
+    best: dict[str, dict] = {}
+    for r in rows:
+        label = BOOKMAKER_LABELS.get(r["bookmaker"], r["bookmaker"])
+        avg = (r["odds_home"] + r["odds_draw"] + r["odds_away"]) / 3
+        if label not in best or avg > best[label]["_avg"]:
+            best[label] = {
+                "bookmaker": r["bookmaker"],
+                "label":     label,
+                "odds_home": round(r["odds_home"], 2),
+                "odds_draw": round(r["odds_draw"], 2),
+                "odds_away": round(r["odds_away"], 2),
+                "_avg":      avg,
+            }
+
+    # Trier selon la priorité définie
+    priority_labels = [BOOKMAKER_LABELS.get(k, k) for k in BOOKMAKER_PRIORITY]
+    ordered = sorted(
+        best.values(),
+        key=lambda x: priority_labels.index(x["label"]) if x["label"] in priority_labels else 999,
+    )
+
+    return {"bookmakers": [{k: v for k, v in b.items() if k != "_avg"} for b in ordered]}
+
+
 @app.get("/odds/value-bets")
 def value_bets():
     """Value bets : matchs où ScorIQ est plus optimiste que les bookmakers."""
