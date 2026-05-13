@@ -38,6 +38,16 @@ HOME_ELO_BOOST = 50.0
 TRUST_FORTE   = 0.60
 TRUST_MOYENNE = 0.50
 
+COMPETITION_NAME_NORM = {
+    "English Premier League": "Premier League",
+    "German Bundesliga":      "Bundesliga",
+    "Italian Serie A":        "Serie A",
+    "French Ligue 1":         "Ligue 1",
+    "Spanish La Liga":        "La Liga",
+    "Dutch Eredivisie":       "Eredivisie",
+    "DFB-Pokal":              "DFB Pokal",
+}
+
 W_LGB_NO_MARKET = 0.65
 W_DC_NO_MARKET  = 0.35
 W_LGB_MARKET    = 0.45
@@ -767,7 +777,7 @@ def main():
         ht        = match["home"]
         at        = match["away"]
         comp_type = match["competition_type"]
-        comp_name = match["competition_name"]
+        comp_name = COMPETITION_NAME_NORM.get(match["competition_name"], match["competition_name"])
         match_date_str = str(match["date"])[:10]
 
         existing = conn.execute("""
