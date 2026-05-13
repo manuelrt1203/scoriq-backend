@@ -154,24 +154,55 @@ def ensure_table(conn: db_conn.Connection) -> None:
 
 
 def fetch_sport_odds(sport_key: str) -> list[dict]:
+    """Fetch h2h + totals en une requête, puis tente btts séparément."""
     try:
         r = requests.get(
             f"{BASE_URL}/{sport_key}/odds/",
             params={
-                "apiKey":      API_KEY,
-                "regions":     "eu",
-                "markets":     "h2h,totals,btts",
-                "oddsFormat":  "decimal",
-                "dateFormat":  "iso",
+                "apiKey":     API_KEY,
+                "regions":    "eu",
+                "markets":    "h2h,totals",
+                "oddsFormat": "decimal",
+                "dateFormat": "iso",
             },
             timeout=15,
         )
         remaining = r.headers.get("x-requests-remaining", "?")
-        if r.status_code == 200:
-            print(f"  {sport_key}: {len(r.json())} matchs (restantes: {remaining})")
-            return r.json()
-        print(f"  {sport_key}: HTTP {r.status_code}")
-        return []
+        if r.status_code != 200:
+            print(f"  {sport_key}: HTTP {r.status_code}")
+            return []
+        matches = r.json()
+        print(f"  {sport_key}: {len(matches)} matchs (restantes: {remaining})", end="")
+
+        # Tenter btts (non dispo pour toutes les compétitions)
+        r2 = requests.get(
+            f"{BASE_URL}/{sport_key}/odds/",
+            params={
+                "apiKey":     API_KEY,
+                "regions":    "eu",
+                "markets":    "btts",
+                "oddsFormat": "decimal",
+                "dateFormat": "iso",
+            },
+            timeout=15,
+        )
+        if r2.status_code == 200:
+            btts_by_id = {m["id"]: m for m in r2.json()}
+            for m in matches:
+                if m["id"] in btts_by_id:
+                    btts_books = {b["key"]: b for b in btts_by_id[m["id"]].get("bookmakers", [])}
+                    for book in m.get("bookmakers", []):
+                        if book["key"] in btts_books:
+                            book["markets"] += [
+                                mkt for mkt in btts_books[book["key"]].get("markets", [])
+                                if mkt["key"] == "btts"
+                            ]
+            remaining2 = r2.headers.get("x-requests-remaining", "?")
+            print(f" + btts (restantes: {remaining2})")
+        else:
+            print()
+
+        return matches
     except requests.RequestException as e:
         print(f"  {sport_key}: erreur {e}")
         return []
