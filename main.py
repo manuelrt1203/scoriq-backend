@@ -1253,13 +1253,13 @@ def top_picks(limit: int = 5):
                      LIMIT 1)
                 ) AS away_badge
             FROM predictions_history ph
-            WHERE ph.status_prediction = 'OK'
+            WHERE ph.status_prediction IN ('OK', 'PREDICTED')
               AND ph.id = (
                   SELECT MAX(id) FROM predictions_history
                   WHERE match_date = ph.match_date
                     AND home_team  = ph.home_team
                     AND away_team  = ph.away_team
-                    AND status_prediction = 'OK'
+                    AND status_prediction IN ('OK', 'PREDICTED')
               )
             ORDER BY ph.match_date DESC, ph.confidence DESC
             LIMIT ?
