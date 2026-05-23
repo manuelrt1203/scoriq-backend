@@ -70,7 +70,7 @@ def ensure_predictions_table(conn):
         conn.execute("""
             SELECT setval(
                 'predictions_history_id_seq',
-                COALESCE((SELECT MAX(id) FROM predictions_history), 0)
+                COALESCE((SELECT MAX(id) FROM predictions_history), 1)
             )
         """)
     conn.commit()
@@ -161,6 +161,14 @@ def evaluate_prediction_row(conn, pred_row):
 
     status = str(match["status"]).strip() if match["status"] is not None else ""
     if status not in FINISHED_STATUSES:
+        conn.execute("""
+            UPDATE predictions_history
+            SET evaluation_status = 'MATCH_NOT_FINISHED'
+            WHERE id = ?
+        """, (pred_row["id"],))
+        return None
+
+    if match["home_score"] is None or match["away_score"] is None:
         conn.execute("""
             UPDATE predictions_history
             SET evaluation_status = 'MATCH_NOT_FINISHED'
@@ -343,7 +351,16 @@ def main():
               "SKIPPED_INSUFFICIENT_HISTORY": 0}
 
     for pred_row in pending:
-        detail = evaluate_prediction_row(conn, pred_row)
+        try:
+            detail = evaluate_prediction_row(conn, pred_row)
+        except Exception as e:
+            print(f"  ERREUR sur {pred_row.get('home_team')} vs {pred_row.get('away_team')}: {e}")
+            conn.execute(
+                "UPDATE predictions_history SET evaluation_status = 'ERROR' WHERE id = ?",
+                (pred_row["id"],)
+            )
+            conn.commit()
+            continue
         if detail is not None:
             evaluated_details.append(detail)
             counts["OK"] += 1

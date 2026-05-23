@@ -626,7 +626,7 @@ def ensure_schema(conn):
     if conn.is_pg:
         conn.execute("""
             SELECT setval('predictions_history_id_seq',
-                COALESCE((SELECT MAX(id) FROM predictions_history), 0))
+                COALESCE((SELECT MAX(id) FROM predictions_history), 1))
         """)
         conn.commit()
 
