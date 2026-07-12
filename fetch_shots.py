@@ -11,13 +11,13 @@ Usage : python fetch_shots.py
 """
 
 import io
-import sqlite3
 import time
 
 import pandas as pd
 import requests
 
-DB_PATH = "football.db"
+import db_conn
+
 BASE_URL = "https://www.football-data.co.uk/mmz4281"
 
 LEAGUES = {
@@ -130,8 +130,8 @@ def parse_date(date_str: str) -> str | None:
     return None
 
 
-def ensure_table(conn: sqlite3.Connection) -> None:
-    conn.execute("""
+def ensure_table(conn: db_conn.Connection) -> None:
+    conn.execute_script("""
         CREATE TABLE IF NOT EXISTS shots_data (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             idLeague     INTEGER,
@@ -144,13 +144,9 @@ def ensure_table(conn: sqlite3.Connection) -> None:
             home_sot     INTEGER,
             away_sot     INTEGER,
             UNIQUE(idLeague, season, match_date, home_team, away_team)
-        )
-    """)
-    conn.execute("""
+        );
         CREATE INDEX IF NOT EXISTS idx_shots_team_date
-        ON shots_data(home_team, match_date)
-    """)
-    conn.execute("""
+        ON shots_data(home_team, match_date);
         CREATE INDEX IF NOT EXISTS idx_shots_away_date
         ON shots_data(away_team, match_date)
     """)
@@ -170,9 +166,9 @@ def fetch_season(code: str, fdcode: str, db_season: str, id_league: int) -> pd.D
         return None
 
 
-def import_season(conn: sqlite3.Connection, df: pd.DataFrame,
+def import_season(conn: db_conn.Connection, df: pd.DataFrame,
                   id_league: int, db_season: str) -> int:
-    inserted = 0
+    rows = []
     for _, row in df.iterrows():
         date = parse_date(row.get("Date"))
         home = normalize_team(str(row.get("HomeTeam", "") or "").strip())
@@ -188,24 +184,40 @@ def import_season(conn: sqlite3.Connection, df: pd.DataFrame,
         if hst is None and ast is None:
             continue
 
-        try:
-            conn.execute("""
-                INSERT OR IGNORE INTO shots_data
-                    (idLeague, season, match_date, home_team, away_team,
-                     home_shots, away_shots, home_sot, away_sot)
-                VALUES (?,?,?,?,?,?,?,?,?)
-            """, (id_league, db_season, date, home, away, hs, as_, hst, ast))
-            if conn.execute("SELECT changes()").fetchone()[0]:
-                inserted += 1
-        except sqlite3.IntegrityError:
-            pass
+        rows.append((id_league, db_season, date, home, away, hs, as_, hst, ast))
+
+    if not rows:
+        return 0
+
+    # Bulk insert en une seule requête (au lieu d'un aller-retour réseau par ligne,
+    # trop lent contre une base distante — cf. feedback_workflow: execute_values).
+    if conn.is_pg:
+        import psycopg2.extras
+        cur = conn._conn.cursor()
+        psycopg2.extras.execute_values(cur, """
+            INSERT INTO shots_data
+                (idLeague, season, match_date, home_team, away_team,
+                 home_shots, away_shots, home_sot, away_sot)
+            VALUES %s
+            ON CONFLICT (idLeague, season, match_date, home_team, away_team) DO NOTHING
+        """, rows, page_size=500)
+        inserted = cur.rowcount
+    else:
+        cur = conn._conn.cursor()
+        cur.executemany("""
+            INSERT OR IGNORE INTO shots_data
+                (idLeague, season, match_date, home_team, away_team,
+                 home_shots, away_shots, home_sot, away_sot)
+            VALUES (?,?,?,?,?,?,?,?,?)
+        """, rows)
+        inserted = cur.rowcount
 
     conn.commit()
     return inserted
 
 
 def main() -> None:
-    conn = sqlite3.connect(DB_PATH)
+    conn = db_conn.get_connection()
     ensure_table(conn)
 
     print("=== IMPORT SHOTS DATA (football-data.co.uk) ===\n")
