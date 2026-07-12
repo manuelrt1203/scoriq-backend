@@ -352,10 +352,10 @@ def print_value_bets(conn: db_conn.Connection) -> None:
     print(f"{'='*70}")
 
     for r in rows:
-        date, home, away, comp = r[0], r[1], r[2], r[3]
-        ph, pd, pa = r[4], r[5], r[6]
-        book, oh, od, oa = r[7], r[8], r[9], r[10]
-        ih, id_, ia = r[11], r[12], r[13]
+        date, home, away, comp = r["match_date"], r["home_team"], r["away_team"], r["competition_name"]
+        ph, pd, pa = r["proba_home_win"], r["proba_draw"], r["proba_away_win"]
+        book, oh, od, oa = r["bookmaker"], r["odds_home"], r["odds_draw"], r["odds_away"]
+        ih, id_, ia = r["implied_home"], r["implied_draw"], r["implied_away"]
 
         value_h = (ph or 0) - ih
         value_d = (pd or 0) - id_
