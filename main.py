@@ -987,7 +987,7 @@ def list_teams():
         rows = conn.execute(
             "SELECT DISTINCT strTeam FROM teams WHERE strTeam IS NOT NULL ORDER BY strTeam"
         ).fetchall()
-        return [r[0] for r in rows]
+        return [r["strTeam"] for r in rows]
     finally:
         conn.close()
 
@@ -999,7 +999,7 @@ def list_competitions():
         rows = conn.execute(
             "SELECT DISTINCT name FROM competitions WHERE name IS NOT NULL ORDER BY name"
         ).fetchall()
-        return [r[0] for r in rows]
+        return [r["name"] for r in rows]
     finally:
         conn.close()
 
