@@ -1,0 +1,27 @@
+name: Retrain Dixon-Coles (manuel)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  retrain:
+    name: Retrain and commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -r requirements.txt
+      - run: python train_dixon_coles.py
+      - name: Commit et push les paramètres ré-entraînés
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dixon_coles_params.json
+          git diff --staged --quiet || git commit -m "chore: ré-entraînement Dixon-Coles (test manuel)"
+          git push
