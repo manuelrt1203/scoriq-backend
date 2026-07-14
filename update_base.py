@@ -300,7 +300,7 @@ def dedupe_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return clean
 
 
-KNOCKOUT_ROUNDS = [16, 32, 64, 128, 256, 400]
+KNOCKOUT_ROUNDS = [16, 32, 64, 128, 256]
 
 
 def fetch_events_for_competition(comp: dict[str, Any], season: str) -> list[dict[str, Any]]:
