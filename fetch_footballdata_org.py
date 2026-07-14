@@ -91,6 +91,8 @@ def build_row(match: dict, comp_conf: dict):
     home = match["homeTeam"].get("name")
     away = match["awayTeam"].get("name")
     date_value = match.get("utcDate")
+    if date_value and date_value.endswith("Z"):
+        date_value = date_value[:-1]  # aligne sur le format thesportsdb (sans suffixe Z)
     if not home or not away or not date_value:
         return None
 
