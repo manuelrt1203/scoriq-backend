@@ -25,14 +25,9 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r requirements.txt
-      - name: Update database (LEAGUE + DOMESTIC_CUP + EUROPE)
+      - name: Update database (LEAGUE + DOMESTIC_CUP + EUROPE + INTERNATIONAL)
         continue-on-error: true
-        run: |
-          python - <<'EOF'
-          import update_base
-          update_base.ALLOWED_COMP_TYPES = {'LEAGUE', 'DOMESTIC_CUP', 'EUROPE'}
-          update_base.main()
-          EOF
+        run: python update_base.py
 
   evaluate_and_predict:
     name: Evaluate & Predict
