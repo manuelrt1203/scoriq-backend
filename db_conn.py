@@ -169,7 +169,6 @@ def ensure_matches_indexes(conn: "Connection") -> None:
         CREATE INDEX IF NOT EXISTS idx_matches_source ON matches(source);
         CREATE INDEX IF NOT EXISTS idx_matches_idleague_season_round ON matches(idLeague, season, round);
         CREATE INDEX IF NOT EXISTS idx_matches_status_comptype ON matches(status, competition_type);
-        CREATE INDEX IF NOT EXISTS idx_matches_date_trunc ON matches(date(date));
         CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(date);
         CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status);
         CREATE INDEX IF NOT EXISTS idx_matches_home ON matches(home);
