@@ -15,4 +15,4 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r requirements.txt
-      - run: python db_inspect2.py
+      - run: python db_inspect3.py
