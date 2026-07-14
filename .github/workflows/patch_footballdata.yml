@@ -1,0 +1,20 @@
+name: Patch football-data.org (knockout stages)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  patch:
+    name: Cleanup + fetch knockout stages
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -r requirements.txt
+      - run: python cleanup_cl_round400.py
+      - run: python fetch_footballdata_org.py
