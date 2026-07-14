@@ -19,6 +19,7 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      FOOTBALL_DATA_KEY: ${{ secrets.FOOTBALL_DATA_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,6 +29,12 @@ jobs:
       - name: Update database (LEAGUE + DOMESTIC_CUP + EUROPE + INTERNATIONAL)
         continue-on-error: true
         run: python update_base.py
+      - name: Clean up corrupted CL round=400 rows
+        continue-on-error: true
+        run: python cleanup_cl_round400.py
+      - name: Complete knockout stages (World Cup + Champions League)
+        continue-on-error: true
+        run: python fetch_footballdata_org.py
 
   evaluate_and_predict:
     name: Evaluate & Predict
