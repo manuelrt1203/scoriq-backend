@@ -53,6 +53,8 @@ def ensure_matches_table(conn: db_conn.Connection) -> None:
 
     conn.commit()
 
+    db_conn.ensure_matches_indexes(conn)
+
 
 def get_competitions(conn: db_conn.Connection) -> list[dict[str, Any]]:
     has_country = conn.column_exists("competitions", "country")

@@ -160,3 +160,21 @@ class Connection:
 
 def get_connection() -> Connection:
     return Connection()
+
+
+def ensure_matches_indexes(conn: "Connection") -> None:
+    """Index requis par les requêtes de predict_v3.py / update_base.py sur la table matches.
+    Idempotent — safe à rappeler à chaque démarrage de script."""
+    conn.execute_script("""
+        CREATE INDEX IF NOT EXISTS idx_matches_source ON matches(source);
+        CREATE INDEX IF NOT EXISTS idx_matches_idleague_season_round ON matches(idLeague, season, round);
+        CREATE INDEX IF NOT EXISTS idx_matches_status_comptype ON matches(status, competition_type);
+        CREATE INDEX IF NOT EXISTS idx_matches_date_trunc ON matches(date(date));
+        CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(date);
+        CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status);
+        CREATE INDEX IF NOT EXISTS idx_matches_home ON matches(home);
+        CREATE INDEX IF NOT EXISTS idx_matches_away ON matches(away);
+        CREATE INDEX IF NOT EXISTS idx_matches_league_season ON matches(idLeague, season);
+        CREATE INDEX IF NOT EXISTS idx_matches_league_date ON matches(idLeague, date);
+    """)
+    conn.commit()

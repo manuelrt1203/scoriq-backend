@@ -583,6 +583,8 @@ def compute_value_edge(final_ph, final_pd, final_pa, mkt_proba):
 # ── Migration table ─────────────────────────────────────────────────────────────
 
 def ensure_schema(conn):
+    db_conn.ensure_matches_indexes(conn)
+
     conn.execute_script("""
     CREATE TABLE IF NOT EXISTS predictions_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
