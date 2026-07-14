@@ -299,6 +299,31 @@ def get_today_matches(conn: sqlite3.Connection):
         """,
         (today, *TARGET_COMPETITION_TYPES),
     ).fetchall()
+
+
+_cached_histories: tuple[Any, Any] | None = None
+_cached_histories_at: datetime | None = None
+HISTORIES_TTL_SECONDS = 1800  # 30 min — les matchs terminés ne changent qu'au cron (2x/jour)
+
+
+def get_histories_and_elo(conn: sqlite3.Connection):
+    """Cache team_histories/elo_state en mémoire process : évite de reparcourir
+    tout l'historique (30k+ matchs) à chaque appel de /predict/today."""
+    global _cached_histories, _cached_histories_at
+    now = datetime.now()
+    if (
+        _cached_histories is not None
+        and _cached_histories_at is not None
+        and (now - _cached_histories_at).total_seconds() < HISTORIES_TTL_SECONDS
+    ):
+        return _cached_histories
+
+    result = build_histories_and_elo(conn)
+    _cached_histories = result
+    _cached_histories_at = now
+    return result
+
+
 def build_histories_and_elo(conn: sqlite3.Connection):
     matches = get_finished_matches(conn)
     team_histories = {}
@@ -1155,7 +1180,7 @@ def predict_today():
 
     conn = get_conn()
     try:
-        team_histories, elo_state = build_histories_and_elo(conn)
+        team_histories, elo_state = get_histories_and_elo(conn)
         matches = get_today_matches(conn)
         results = []
 
