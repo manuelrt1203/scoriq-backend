@@ -19,6 +19,39 @@ SLEEP_BETWEEN_REQUESTS = 6  # 10 req/min max sur le plan gratuit
 
 ID_OFFSET = 900_000_000_000_000  # namespace dédié, hors de portée de thesportsdb/openfootball
 
+# Alignement des noms d'équipes sur la convention thesportsdb (source de référence
+# pour la dédup / l'historique / le H2H) — sinon un même club/nation apparaît sous
+# deux noms différents selon la source et casse les jointures par nom exact.
+TEAM_NAME_MAP = {
+    # Nations (Coupe du Monde)
+    "United States": "USA",
+    # Clubs (Ligue des Champions 2025-2026)
+    "Arsenal FC": "Arsenal",
+    "AS Monaco FC": "Monaco",
+    "Atalanta BC": "Atalanta",
+    "Bayer 04 Leverkusen": "Bayer Leverkusen",
+    "Club Atlético de Madrid": "Atlético Madrid",
+    "Club Brugge KV": "Club Brugge",
+    "FC Barcelona": "Barcelona",
+    "FC Bayern München": "Bayern Munich",
+    "FC Internazionale Milano": "Inter Milan",
+    "FK Bodø/Glimt": "Bodø/Glimt",
+    "Galatasaray SK": "Galatasaray",
+    "Juventus FC": "Juventus",
+    "Liverpool FC": "Liverpool",
+    "Newcastle United FC": "Newcastle United",
+    "PAE Olympiakos SFP": "Olympiacos",
+    "Paris Saint-Germain FC": "Paris SG",
+    "Qarabağ Ağdam FK": "Qarabağ",
+    "Real Madrid CF": "Real Madrid",
+    "Sport Lisboa e Benfica": "Benfica",
+    "Sporting Clube de Portugal": "Sporting CP",
+}
+
+
+def canonical_name(name: str) -> str:
+    return TEAM_NAME_MAP.get(name, name)
+
 # Compétitions couvertes + mapping stage -> round (évite toute collision avec
 # les rounds déjà utilisés par thesportsdb pour la même compétition)
 COMPETITIONS = {
@@ -90,6 +123,10 @@ def build_row(match: dict, comp_conf: dict):
 
     home = match["homeTeam"].get("name")
     away = match["awayTeam"].get("name")
+    if home:
+        home = canonical_name(home)
+    if away:
+        away = canonical_name(away)
     date_value = match.get("utcDate")
     if date_value and date_value.endswith("Z"):
         date_value = date_value[:-1]  # aligne sur le format thesportsdb (sans suffixe Z)
