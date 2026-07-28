@@ -1841,15 +1841,21 @@ def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default
     messages = list(req.messages)
 
     for _ in range(AGENT_MAX_TOOL_ROUNDS):
-        response = client.models.generate_content(
-            model=AGENT_MODEL,
-            contents=_wire_messages_to_gemini_contents(messages),
-            config=genai_types.GenerateContentConfig(
-                system_instruction=AGENT_SYSTEM_PROMPT,
-                tools=_gemini_tools(),
-                max_output_tokens=1024,
-            ),
-        )
+        try:
+            response = client.models.generate_content(
+                model=AGENT_MODEL,
+                contents=_wire_messages_to_gemini_contents(messages),
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=AGENT_SYSTEM_PROMPT,
+                    tools=_gemini_tools(),
+                    max_output_tokens=1024,
+                ),
+            )
+        except genai.errors.APIError as e:
+            # Sans ce try/except, une erreur Gemini (clé invalide, quota, panne...) remonte
+            # comme une exception non gérée -> 500 sans en-têtes CORS -> le navigateur
+            # l'affiche comme "Failed to fetch" au lieu du vrai message d'erreur.
+            raise HTTPException(status_code=502, detail=f"L'assistant IA n'a pas pu répondre : {e.message}")
 
         assistant_message = _gemini_response_to_wire_message(response)
         messages.append(assistant_message)
