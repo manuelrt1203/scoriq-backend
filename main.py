@@ -1727,13 +1727,41 @@ AGENT_TOOLS = [
 ]
 
 
+# Champs utiles à l'agent conversationnel dans une ligne predictions_history/predict_today.
+# Volontairement exclus : id, prediction_run_date, evaluation_status, value_pick/edge,
+# abs_error_*, market_proba_*, n_bookmakers (quasi toujours null), home_badge/away_badge
+# (URLs d'images, jamais utiles en texte) — ça fait ~44 champs -> ~20, un gros poste de
+# tokens vu que ces outils renvoient plusieurs matchs à la fois.
+_PREDICTION_FIELDS_KEEP = {
+    "date", "match_date", "competition_name", "competition_type",
+    "home_team", "away_team", "status_prediction", "model_used",
+    "top_pick", "confidence", "trust_level",
+    "proba_home_win", "proba_draw", "proba_away_win",
+    "pred_home_goals", "pred_away_goals", "pred_total_goals",
+    "over_1_5", "over_2_5", "over_3_5", "btts_yes",
+    "most_likely_score", "most_likely_score_prob",
+    "real_home_goals", "real_away_goals", "real_result", "real_total_goals",
+    "real_btts", "real_over_2_5",
+    "is_correct_1x2", "is_correct_btts", "is_correct_over_2_5",
+}
+
+
+def _trim_prediction(row: dict) -> dict:
+    return {k: v for k, v in row.items() if k in _PREDICTION_FIELDS_KEEP and v is not None}
+
+
 def _run_server_tool(name: str, tool_input: dict) -> Any:
     if name == "get_top_picks":
-        return top_picks(limit=tool_input.get("limit", 5))
+        limit = min(int(tool_input.get("limit") or 5), 15)
+        rows = top_picks(limit=limit)
+        return [_trim_prediction(r) for r in rows]
     if name == "get_predictions_today":
-        return predict_today()
+        result = predict_today()
+        result["matches"] = [_trim_prediction(m) for m in result["matches"]]
+        return result
     if name == "get_head_to_head":
-        return head_to_head(home=tool_input["home"], away=tool_input["away"], limit=tool_input.get("limit", 10))
+        limit = min(int(tool_input.get("limit") or 10), 15)
+        return head_to_head(home=tool_input["home"], away=tool_input["away"], limit=limit)
     if name == "get_standings":
         return standings(competition=tool_input["competition"], season=tool_input.get("season"))
     raise ValueError(f"Outil serveur inconnu: {name}")
