@@ -1791,6 +1791,10 @@ def _groq_response_to_wire_message(response: groq.types.chat.chat_completion.Cha
             args = json.loads(tc.function.arguments) if tc.function.arguments else {}
         except (TypeError, ValueError):
             args = {}
+        if not isinstance(args, dict):
+            # Llama renvoie parfois la chaîne "null" pour un appel sans arguments
+            # (json.loads("null") -> None) au lieu d'un objet vide "{}".
+            args = {}
         blocks.append({"type": "tool_use", "id": tc.id, "name": tc.function.name, "input": args})
     return {"role": "assistant", "content": blocks}
 
