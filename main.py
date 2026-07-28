@@ -1596,14 +1596,22 @@ Ton rôle :
 Règles :
 - Réponds en français, reste concis, pas de blabla inutile.
 - N'affirme jamais qu'un pari est "sûr" — ce sont des probabilités, pas des certitudes.
-- Utilise toujours les outils plutôt que de deviner une donnée (score, cote, historique...).
+- Utilise toujours les outils plutôt que de deviner une donnée (score, cote, historique, pseudo...). \
+Si une information précise (score, chiffre, pseudo) a été obtenue par un outil plus tôt dans la \
+conversation, RE-APPELLE l'outil pour la revérifier avant de la redonner plutôt que de te fier à ta \
+mémoire de la conversation — tu te trompes parfois en confondant les données de deux matchs différents.
+- Si aucun outil ne permet de répondre à une question, dis-le clairement plutôt que d'improviser.
+- N'écris JAMAIS un appel d'outil sous forme de texte brut (par exemple `<function=...>...</function>` \
+ou tout pseudo-code similaire) — utilise uniquement le mécanisme d'appel d'outils structuré mis à ta \
+disposition. Si tu ne peux pas utiliser cette mécanique, explique en une phrase ce que tu ne peux pas \
+faire au lieu d'écrire du texte qui ressemble à du code.
 - Quand tu modifies quelque chose pour l'utilisateur (favori, profil, navigation), confirme brièvement \
 ce que tu as fait.
 """
 
 CLIENT_TOOL_NAMES = {
     "add_favorite", "remove_favorite", "list_favorites",
-    "update_profile", "switch_tab", "open_match",
+    "get_profile", "update_profile", "switch_tab", "open_match",
 }
 
 AGENT_TOOLS = [
@@ -1674,6 +1682,11 @@ AGENT_TOOLS = [
     {
         "name": "list_favorites",
         "description": "Liste les équipes et compétitions favorites de l'utilisateur actuellement connecté.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_profile",
+        "description": "Retourne le profil actuel de l'utilisateur connecté (pseudo, préférence de notification).",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
