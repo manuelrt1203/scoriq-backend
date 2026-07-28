@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import math
 import os
 import smtplib
@@ -13,8 +14,10 @@ from typing import Any
 import joblib
 import pandas as pd
 import requests as http_requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from google import genai
+from google.genai import types as genai_types
 from pydantic import BaseModel
 
 GMAIL_USER     = os.environ.get("GMAIL_USER", "manuelrt1203@gmail.com")
@@ -1538,3 +1541,348 @@ def results_evaluated(days: int = 30):
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Agent IA — assistant conversationnel avec tool-use (Google Gemini, gratuit)
+#
+# Deux familles d'outils :
+#   - "serveur"  : lecture de données (predictions, h2h, classement) →
+#                  exécutés directement ici, côté backend.
+#   - "client"   : actions qui touchent la session Supabase de l'utilisateur
+#                  ou l'UI (favoris, profil, navigation) → le backend ne les
+#                  exécute jamais lui-même (pas de clé Supabase ici, RLS déjà
+#                  en place côté frontend) ; il les renvoie au frontend qui
+#                  les exécute puis renvoie le résultat pour continuer la
+#                  conversation.
+#
+# Le format des messages échangés avec le frontend reste au format
+# "Anthropic-like" ({role, content:[{type:"text"/"tool_use"/"tool_result"}]})
+# pour ne pas avoir à toucher le frontend si on change de fournisseur un
+# jour — c'est ici, dans _wire_messages_to_gemini_contents /
+# _gemini_response_to_wire_message, que la traduction vers l'API Gemini a lieu.
+# ─────────────────────────────────────────────────────────────────────────
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+AGENT_MODEL = "gemini-flash-latest"
+AGENT_MAX_TOOL_ROUNDS = 6
+
+_gemini_client: genai.Client | None = None
+
+
+def get_gemini_client() -> genai.Client:
+    global _gemini_client
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="Agent IA non configuré (GEMINI_API_KEY manquante).")
+    if _gemini_client is None:
+        _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    return _gemini_client
+
+
+AGENT_SYSTEM_PROMPT = """Tu es l'assistant IA de ScorIQ, un site de pronostics football basé sur des \
+modèles statistiques (Dixon-Coles, machine learning).
+
+Ton rôle :
+- Répondre aux questions sur les matchs, prédictions, cotes et statistiques.
+- Donner des conseils de pronostics en t'appuyant UNIQUEMENT sur les données renvoyées par tes outils \
+(jamais d'invention de chiffres).
+- Aider l'utilisateur à gérer ses favoris (équipes/compétitions) et son profil.
+- Naviguer l'utilisateur vers le bon onglet ou vers la fiche d'un match quand c'est utile.
+
+Règles :
+- Réponds en français, reste concis, pas de blabla inutile.
+- N'affirme jamais qu'un pari est "sûr" — ce sont des probabilités, pas des certitudes.
+- Utilise toujours les outils plutôt que de deviner une donnée (score, cote, historique...).
+- Quand tu modifies quelque chose pour l'utilisateur (favori, profil, navigation), confirme brièvement \
+ce que tu as fait.
+"""
+
+CLIENT_TOOL_NAMES = {
+    "add_favorite", "remove_favorite", "list_favorites",
+    "update_profile", "switch_tab", "open_match",
+}
+
+AGENT_TOOLS = [
+    {
+        "name": "get_top_picks",
+        "description": "Retourne les meilleurs pronostics du moment, triés par confiance décroissante.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Nombre de pronostics à retourner (défaut 5)"},
+            },
+        },
+    },
+    {
+        "name": "get_predictions_today",
+        "description": "Retourne les prédictions pour tous les matchs du jour.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_head_to_head",
+        "description": "Retourne l'historique des confrontations directes entre deux équipes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "home": {"type": "string", "description": "Nom de l'équipe à domicile"},
+                "away": {"type": "string", "description": "Nom de l'équipe à l'extérieur"},
+                "limit": {"type": "integer", "description": "Nombre de confrontations à retourner (défaut 10)"},
+            },
+            "required": ["home", "away"],
+        },
+    },
+    {
+        "name": "get_standings",
+        "description": "Retourne le classement actuel d'une compétition.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "competition": {"type": "string", "description": "Nom (partiel) de la compétition, ex: 'Ligue 1'"},
+                "season": {"type": "string", "description": "Saison, ex: '2025-2026' (optionnel, saison en cours par défaut)"},
+            },
+            "required": ["competition"],
+        },
+    },
+    {
+        "name": "add_favorite",
+        "description": "Ajoute une équipe ou une compétition aux favoris de l'utilisateur actuellement connecté.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "enum": ["team", "competition"]},
+                "name": {"type": "string", "description": "Nom exact de l'équipe ou de la compétition"},
+            },
+            "required": ["type", "name"],
+        },
+    },
+    {
+        "name": "remove_favorite",
+        "description": "Retire une équipe ou une compétition des favoris de l'utilisateur actuellement connecté.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "enum": ["team", "competition"]},
+                "name": {"type": "string"},
+            },
+            "required": ["type", "name"],
+        },
+    },
+    {
+        "name": "list_favorites",
+        "description": "Liste les équipes et compétitions favorites de l'utilisateur actuellement connecté.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "update_profile",
+        "description": "Met à jour le profil de l'utilisateur (pseudo, préférence de notification).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "username": {"type": "string", "description": "Nouveau pseudo"},
+                "notify_forte_picks": {"type": "boolean", "description": "Recevoir une notification pour les pronostics à forte confiance"},
+            },
+        },
+    },
+    {
+        "name": "switch_tab",
+        "description": "Change l'onglet actif affiché à l'utilisateur.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tab": {"type": "string", "enum": ["matches", "favoris", "toppicks", "historique", "stats", "buts"]},
+            },
+            "required": ["tab"],
+        },
+    },
+    {
+        "name": "open_match",
+        "description": "Ouvre la fiche détaillée d'un match précis pour l'utilisateur.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "home": {"type": "string", "description": "Équipe à domicile"},
+                "away": {"type": "string", "description": "Équipe à l'extérieur"},
+                "date": {"type": "string", "description": "Date du match au format YYYY-MM-DD, si connue"},
+            },
+            "required": ["home", "away"],
+        },
+    },
+]
+
+
+def _run_server_tool(name: str, tool_input: dict) -> Any:
+    if name == "get_top_picks":
+        return top_picks(limit=tool_input.get("limit", 5))
+    if name == "get_predictions_today":
+        return predict_today()
+    if name == "get_head_to_head":
+        return head_to_head(home=tool_input["home"], away=tool_input["away"], limit=tool_input.get("limit", 10))
+    if name == "get_standings":
+        return standings(competition=tool_input["competition"], season=tool_input.get("season"))
+    raise ValueError(f"Outil serveur inconnu: {name}")
+
+
+def _gemini_tools() -> list[genai_types.Tool]:
+    return [genai_types.Tool(function_declarations=[
+        genai_types.FunctionDeclaration(
+            name=t["name"],
+            description=t["description"],
+            parameters_json_schema=t["input_schema"],
+        )
+        for t in AGENT_TOOLS
+    ])]
+
+
+def _tool_id_to_name(messages: list[dict]) -> dict[str, str]:
+    """Reconstitue id → nom d'outil à partir des tool_use déjà émis (Gemini exige le
+    nom de la fonction pour construire une réponse de fonction, contrairement à Claude)."""
+    mapping: dict[str, str] = {}
+    for m in messages:
+        content = m.get("content")
+        if m.get("role") == "assistant" and isinstance(content, list):
+            for block in content:
+                if block.get("type") == "tool_use":
+                    mapping[block["id"]] = block["name"]
+    return mapping
+
+
+def _with_thought_signature(part: genai_types.Part, block: dict) -> genai_types.Part:
+    """Réinjecte la thought_signature (exigée par les modèles Gemini récents sur les
+    parts émises par le modèle) capturée lors du tour précédent — voir
+    https://ai.google.dev/gemini-api/docs/thought-signatures."""
+    sig = block.get("_thought_signature")
+    if sig:
+        part.thought_signature = base64.b64decode(sig)
+    return part
+
+
+def _wire_messages_to_gemini_contents(messages: list[dict]) -> list[genai_types.Content]:
+    id_to_name = _tool_id_to_name(messages)
+    contents = []
+    for m in messages:
+        role = "model" if m["role"] == "assistant" else "user"
+        content = m["content"]
+        parts: list[genai_types.Part] = []
+
+        if isinstance(content, str):
+            parts.append(genai_types.Part(text=content))
+        else:
+            for block in content:
+                btype = block.get("type")
+                if btype == "text":
+                    part = genai_types.Part(text=block["text"])
+                    parts.append(_with_thought_signature(part, block))
+                elif btype == "tool_use":
+                    part = genai_types.Part.from_function_call(name=block["name"], args=block.get("input") or {})
+                    parts.append(_with_thought_signature(part, block))
+                elif btype == "tool_result":
+                    raw = block.get("content")
+                    try:
+                        parsed = json.loads(raw) if isinstance(raw, str) else raw
+                    except (TypeError, ValueError):
+                        parsed = raw
+                    if not isinstance(parsed, dict):
+                        parsed = {"result": parsed}
+                    parts.append(genai_types.Part.from_function_response(
+                        name=id_to_name.get(block["tool_use_id"], "unknown_tool"),
+                        response=parsed,
+                    ))
+
+        contents.append(genai_types.Content(role=role, parts=parts))
+    return contents
+
+
+def _gemini_response_to_wire_message(response: genai_types.GenerateContentResponse) -> dict:
+    if not response.candidates or not response.candidates[0].content:
+        raise HTTPException(status_code=502, detail="Réponse vide de l'assistant (filtrée ou en erreur).")
+
+    blocks = []
+    for i, part in enumerate(response.candidates[0].content.parts or []):
+        block = None
+        if part.text:
+            block = {"type": "text", "text": part.text}
+        elif part.function_call:
+            fc = part.function_call
+            call_id = fc.id or f"call_{i}"
+            block = {"type": "tool_use", "id": call_id, "name": fc.name, "input": fc.args or {}}
+        if block is None:
+            continue
+        if part.thought_signature:
+            block["_thought_signature"] = base64.b64encode(part.thought_signature).decode()
+        blocks.append(block)
+    return {"role": "assistant", "content": blocks}
+
+
+class AgentChatRequest(BaseModel):
+    messages: list[dict]
+
+
+class AgentPendingToolCall(BaseModel):
+    id: str
+    name: str
+    input: dict
+    result: Any = None  # déjà résolu côté serveur si non-null ; sinon à exécuter côté client
+
+
+class AgentChatResponse(BaseModel):
+    messages: list[dict]
+    pending_tool_calls: list[AgentPendingToolCall] = []
+    done: bool
+
+
+@app.post("/agent/chat", response_model=AgentChatResponse)
+def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default=None)):
+    # Garde-fou minimal : il faut être connecté (token Supabase présent) pour
+    # limiter l'usage de l'API Gemini aux utilisateurs du site.
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Connexion requise pour utiliser l'assistant.")
+
+    client = get_gemini_client()
+    messages = list(req.messages)
+
+    for _ in range(AGENT_MAX_TOOL_ROUNDS):
+        response = client.models.generate_content(
+            model=AGENT_MODEL,
+            contents=_wire_messages_to_gemini_contents(messages),
+            config=genai_types.GenerateContentConfig(
+                system_instruction=AGENT_SYSTEM_PROMPT,
+                tools=_gemini_tools(),
+                max_output_tokens=1024,
+            ),
+        )
+
+        assistant_message = _gemini_response_to_wire_message(response)
+        messages.append(assistant_message)
+
+        tool_uses = [b for b in assistant_message["content"] if b["type"] == "tool_use"]
+        if not tool_uses:
+            return AgentChatResponse(messages=messages, pending_tool_calls=[], done=True)
+
+        needs_client = any(b["name"] in CLIENT_TOOL_NAMES for b in tool_uses)
+
+        if needs_client:
+            pending = []
+            for b in tool_uses:
+                if b["name"] in CLIENT_TOOL_NAMES:
+                    pending.append(AgentPendingToolCall(id=b["id"], name=b["name"], input=b["input"], result=None))
+                else:
+                    try:
+                        result = _run_server_tool(b["name"], b["input"])
+                    except Exception as e:
+                        result = {"error": str(e)}
+                    pending.append(AgentPendingToolCall(id=b["id"], name=b["name"], input=b["input"], result=result))
+            return AgentChatResponse(messages=messages, pending_tool_calls=pending, done=False)
+
+        tool_results = []
+        for b in tool_uses:
+            try:
+                result = _run_server_tool(b["name"], b["input"])
+                tool_results.append({"type": "tool_result", "tool_use_id": b["id"], "content": json.dumps(result, default=str)})
+            except Exception as e:
+                tool_results.append({
+                    "type": "tool_result", "tool_use_id": b["id"],
+                    "content": json.dumps({"error": str(e)}), "is_error": True,
+                })
+        messages.append({"role": "user", "content": tool_results})
+
+    raise HTTPException(status_code=504, detail="L'assistant n'a pas pu conclure (trop d'étapes).")
