@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import math
 import os
 import smtplib
@@ -11,13 +10,12 @@ from email.mime.text import MIMEText
 from statistics import mean
 from typing import Any
 
+import groq
 import joblib
 import pandas as pd
 import requests as http_requests
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from google import genai
-from google.genai import types as genai_types
 from pydantic import BaseModel
 
 GMAIL_USER     = os.environ.get("GMAIL_USER", "manuelrt1203@gmail.com")
@@ -1544,7 +1542,7 @@ def results_evaluated(days: int = 30):
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Agent IA — assistant conversationnel avec tool-use (Google Gemini, gratuit)
+# Agent IA — assistant conversationnel avec tool-use (Groq, gratuit)
 #
 # Deux familles d'outils :
 #   - "serveur"  : lecture de données (predictions, h2h, classement) →
@@ -1559,24 +1557,30 @@ def results_evaluated(days: int = 30):
 # Le format des messages échangés avec le frontend reste au format
 # "Anthropic-like" ({role, content:[{type:"text"/"tool_use"/"tool_result"}]})
 # pour ne pas avoir à toucher le frontend si on change de fournisseur un
-# jour — c'est ici, dans _wire_messages_to_gemini_contents /
-# _gemini_response_to_wire_message, que la traduction vers l'API Gemini a lieu.
+# jour — c'est ici, dans _wire_messages_to_groq_messages /
+# _groq_response_to_wire_message, que la traduction vers l'API Groq a lieu.
+#
+# Groq plutôt que Gemini : l'API Gemini gratuite bloque certaines IP de
+# datacenter avec "User location is not supported" (Render est à Francfort,
+# et ça a tapé cette restriction) ; Groq n'a pas ce problème et a un quota
+# gratuit bien plus généreux (14 400 req/jour vs ~20 pour un projet Gemini
+# tout juste créé sans facturation).
 # ─────────────────────────────────────────────────────────────────────────
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-AGENT_MODEL = "gemini-flash-latest"
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+AGENT_MODEL = "llama-3.3-70b-versatile"
 AGENT_MAX_TOOL_ROUNDS = 6
 
-_gemini_client: genai.Client | None = None
+_groq_client: groq.Groq | None = None
 
 
-def get_gemini_client() -> genai.Client:
-    global _gemini_client
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=503, detail="Agent IA non configuré (GEMINI_API_KEY manquante).")
-    if _gemini_client is None:
-        _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-    return _gemini_client
+def get_groq_client() -> groq.Groq:
+    global _groq_client
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=503, detail="Agent IA non configuré (GROQ_API_KEY manquante).")
+    if _groq_client is None:
+        _groq_client = groq.Groq(api_key=GROQ_API_KEY)
+    return _groq_client
 
 
 AGENT_SYSTEM_PROMPT = """Tu es l'assistant IA de ScorIQ, un site de pronostics football basé sur des \
@@ -1722,94 +1726,72 @@ def _run_server_tool(name: str, tool_input: dict) -> Any:
     raise ValueError(f"Outil serveur inconnu: {name}")
 
 
-def _gemini_tools() -> list[genai_types.Tool]:
-    return [genai_types.Tool(function_declarations=[
-        genai_types.FunctionDeclaration(
-            name=t["name"],
-            description=t["description"],
-            parameters_json_schema=t["input_schema"],
-        )
+def _groq_tools() -> list[dict]:
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["input_schema"],
+            },
+        }
         for t in AGENT_TOOLS
-    ])]
+    ]
 
 
-def _tool_id_to_name(messages: list[dict]) -> dict[str, str]:
-    """Reconstitue id → nom d'outil à partir des tool_use déjà émis (Gemini exige le
-    nom de la fonction pour construire une réponse de fonction, contrairement à Claude)."""
-    mapping: dict[str, str] = {}
+def _wire_messages_to_groq_messages(messages: list[dict]) -> list[dict]:
+    """Traduit le format wire (Anthropic-like, blocks) vers le format Groq/OpenAI
+    (chaque tool_result devient son propre message role="tool")."""
+    groq_messages: list[dict] = [{"role": "system", "content": AGENT_SYSTEM_PROMPT}]
+
     for m in messages:
-        content = m.get("content")
-        if m.get("role") == "assistant" and isinstance(content, list):
-            for block in content:
-                if block.get("type") == "tool_use":
-                    mapping[block["id"]] = block["name"]
-    return mapping
-
-
-def _with_thought_signature(part: genai_types.Part, block: dict) -> genai_types.Part:
-    """Réinjecte la thought_signature (exigée par les modèles Gemini récents sur les
-    parts émises par le modèle) capturée lors du tour précédent — voir
-    https://ai.google.dev/gemini-api/docs/thought-signatures."""
-    sig = block.get("_thought_signature")
-    if sig:
-        part.thought_signature = base64.b64decode(sig)
-    return part
-
-
-def _wire_messages_to_gemini_contents(messages: list[dict]) -> list[genai_types.Content]:
-    id_to_name = _tool_id_to_name(messages)
-    contents = []
-    for m in messages:
-        role = "model" if m["role"] == "assistant" else "user"
+        role = m["role"]
         content = m["content"]
-        parts: list[genai_types.Part] = []
 
         if isinstance(content, str):
-            parts.append(genai_types.Part(text=content))
-        else:
-            for block in content:
-                btype = block.get("type")
-                if btype == "text":
-                    part = genai_types.Part(text=block["text"])
-                    parts.append(_with_thought_signature(part, block))
-                elif btype == "tool_use":
-                    part = genai_types.Part.from_function_call(name=block["name"], args=block.get("input") or {})
-                    parts.append(_with_thought_signature(part, block))
-                elif btype == "tool_result":
-                    raw = block.get("content")
-                    try:
-                        parsed = json.loads(raw) if isinstance(raw, str) else raw
-                    except (TypeError, ValueError):
-                        parsed = raw
-                    if not isinstance(parsed, dict):
-                        parsed = {"result": parsed}
-                    parts.append(genai_types.Part.from_function_response(
-                        name=id_to_name.get(block["tool_use_id"], "unknown_tool"),
-                        response=parsed,
-                    ))
-
-        contents.append(genai_types.Content(role=role, parts=parts))
-    return contents
-
-
-def _gemini_response_to_wire_message(response: genai_types.GenerateContentResponse) -> dict:
-    if not response.candidates or not response.candidates[0].content:
-        raise HTTPException(status_code=502, detail="Réponse vide de l'assistant (filtrée ou en erreur).")
-
-    blocks = []
-    for i, part in enumerate(response.candidates[0].content.parts or []):
-        block = None
-        if part.text:
-            block = {"type": "text", "text": part.text}
-        elif part.function_call:
-            fc = part.function_call
-            call_id = fc.id or f"call_{i}"
-            block = {"type": "tool_use", "id": call_id, "name": fc.name, "input": fc.args or {}}
-        if block is None:
+            groq_messages.append({"role": role, "content": content})
             continue
-        if part.thought_signature:
-            block["_thought_signature"] = base64.b64encode(part.thought_signature).decode()
-        blocks.append(block)
+
+        if role == "assistant":
+            text = "\n".join(b["text"] for b in content if b.get("type") == "text")
+            tool_calls = [
+                {
+                    "id": b["id"],
+                    "type": "function",
+                    "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})},
+                }
+                for b in content if b.get("type") == "tool_use"
+            ]
+            msg: dict = {"role": "assistant", "content": text or None}
+            if tool_calls:
+                msg["tool_calls"] = tool_calls
+            groq_messages.append(msg)
+        else:
+            for b in content:
+                if b.get("type") == "tool_result":
+                    groq_messages.append({
+                        "role": "tool",
+                        "tool_call_id": b["tool_use_id"],
+                        "content": b.get("content") or "",
+                    })
+                elif b.get("type") == "text":
+                    groq_messages.append({"role": "user", "content": b["text"]})
+
+    return groq_messages
+
+
+def _groq_response_to_wire_message(response: groq.types.chat.chat_completion.ChatCompletion) -> dict:
+    message = response.choices[0].message
+    blocks = []
+    if message.content:
+        blocks.append({"type": "text", "text": message.content})
+    for tc in message.tool_calls or []:
+        try:
+            args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+        except (TypeError, ValueError):
+            args = {}
+        blocks.append({"type": "tool_use", "id": tc.id, "name": tc.function.name, "input": args})
     return {"role": "assistant", "content": blocks}
 
 
@@ -1833,31 +1815,28 @@ class AgentChatResponse(BaseModel):
 @app.post("/agent/chat", response_model=AgentChatResponse)
 def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default=None)):
     # Garde-fou minimal : il faut être connecté (token Supabase présent) pour
-    # limiter l'usage de l'API Gemini aux utilisateurs du site.
+    # limiter l'usage de l'API Groq aux utilisateurs du site.
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Connexion requise pour utiliser l'assistant.")
 
-    client = get_gemini_client()
+    client = get_groq_client()
     messages = list(req.messages)
 
     for _ in range(AGENT_MAX_TOOL_ROUNDS):
         try:
-            response = client.models.generate_content(
+            response = client.chat.completions.create(
                 model=AGENT_MODEL,
-                contents=_wire_messages_to_gemini_contents(messages),
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=AGENT_SYSTEM_PROMPT,
-                    tools=_gemini_tools(),
-                    max_output_tokens=1024,
-                ),
+                messages=_wire_messages_to_groq_messages(messages),
+                tools=_groq_tools(),
+                max_tokens=1024,
             )
-        except genai.errors.APIError as e:
-            # Sans ce try/except, une erreur Gemini (clé invalide, quota, panne...) remonte
+        except groq.APIError as e:
+            # Sans ce try/except, une erreur Groq (clé invalide, quota, panne...) remonte
             # comme une exception non gérée -> 500 sans en-têtes CORS -> le navigateur
             # l'affiche comme "Failed to fetch" au lieu du vrai message d'erreur.
-            raise HTTPException(status_code=502, detail=f"L'assistant IA n'a pas pu répondre : {e.message}")
+            raise HTTPException(status_code=502, detail=f"L'assistant IA n'a pas pu répondre : {e}")
 
-        assistant_message = _gemini_response_to_wire_message(response)
+        assistant_message = _groq_response_to_wire_message(response)
         messages.append(assistant_message)
 
         tool_uses = [b for b in assistant_message["content"] if b["type"] == "tool_use"]
