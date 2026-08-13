@@ -1,45 +1,38 @@
-"""Diagnostic en lecture seule — état des compétitions internationales / C1."""
+"""Diagnostic en lecture seule — recherche match PSG vs Aston Villa."""
 import db_conn
 
 
 def main():
     conn = db_conn.get_connection()
 
-    print("=== Compétitions INTERNATIONAL ===")
+    print("=== Equipes correspondant à PSG / Paris ===")
     for r in conn.execute("""
-        SELECT idLeague, name FROM competitions WHERE competition_type='INTERNATIONAL' ORDER BY name
+        SELECT DISTINCT home as team FROM matches WHERE home ILIKE '%psg%' OR home ILIKE '%paris%'
+        UNION
+        SELECT DISTINCT away as team FROM matches WHERE away ILIKE '%psg%' OR away ILIKE '%paris%'
     """).fetchall():
         print(dict(r) if not isinstance(r, dict) else r)
 
-    print("\n=== Matches par compétition INTERNATIONAL (comptage) ===")
+    print("\n=== Equipes correspondant à Aston Villa ===")
     for r in conn.execute("""
-        SELECT idLeague, competition_name, COUNT(*) as n,
-               SUM(CASE WHEN status='FINISHED' THEN 1 ELSE 0 END) as finished,
-               MIN(date) as min_date, MAX(date) as max_date
-        FROM matches WHERE competition_type='INTERNATIONAL'
-        GROUP BY idLeague, competition_name ORDER BY n DESC
+        SELECT DISTINCT home as team FROM matches WHERE home ILIKE '%aston%villa%'
+        UNION
+        SELECT DISTINCT away as team FROM matches WHERE away ILIKE '%aston%villa%'
     """).fetchall():
         print(dict(r) if not isinstance(r, dict) else r)
 
-    print("\n=== FIFA World Cup (idLeague=4429) par round ===")
+    print("\n=== Match(s) PSG vs Aston Villa (dans les deux sens) ===")
     for r in conn.execute("""
-        SELECT round, status, COUNT(*) as n, MIN(date) as min_date, MAX(date) as max_date
-        FROM matches WHERE idLeague=4429
-        GROUP BY round, status ORDER BY CAST(round AS INTEGER)
+        SELECT id, home, away, home_score, away_score, date, status, competition_name, season, round, source
+        FROM matches
+        WHERE (
+            (home ILIKE '%psg%' OR home ILIKE '%paris%') AND away ILIKE '%aston%villa%'
+        ) OR (
+            (away ILIKE '%psg%' OR away ILIKE '%paris%') AND home ILIKE '%aston%villa%'
+        )
+        ORDER BY date DESC
     """).fetchall():
         print(dict(r) if not isinstance(r, dict) else r)
-
-    print("\n=== UEFA Champions League (idLeague=4480) par round, saison 2025-2026 ===")
-    for r in conn.execute("""
-        SELECT round, status, COUNT(*) as n
-        FROM matches WHERE idLeague=4480 AND season='2025-2026'
-        GROUP BY round, status ORDER BY CAST(round AS INTEGER)
-    """).fetchall():
-        print(dict(r) if not isinstance(r, dict) else r)
-
-    print("\n=== Round 400 C1 — pollution résiduelle ===")
-    total400 = conn.execute("SELECT COUNT(*) as n FROM matches WHERE idLeague=4480 AND round='400'").fetchone()
-    print("total round=400:", dict(total400) if not isinstance(total400, dict) else total400)
 
     conn.close()
 
