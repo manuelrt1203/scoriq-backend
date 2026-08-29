@@ -34,6 +34,9 @@ jobs:
       - name: Clean up corrupted CL round=400 rows
         continue-on-error: true
         run: python cleanup_cl_round400.py
+      - name: Normaliser les noms d'équipes divergents et compléter les badges manquants
+        continue-on-error: true
+        run: python sync_team_badges.py
       - name: Complete knockout stages (World Cup + Champions League)
         continue-on-error: true
         run: python fetch_footballdata_org.py
