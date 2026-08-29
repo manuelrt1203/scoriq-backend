@@ -169,42 +169,47 @@ def fetch_events_for_round(league_id: int, season: str, round_no: int) -> list[d
 
 
 def normalize_status(status: Any, date_value: Any = None, home_score: Any = None, away_score: Any = None) -> str:
+    # Le statut réel de TheSportsDB (strStatus) est toujours prioritaire sur la
+    # simple présence d'un score : un match en direct a déjà un score (même
+    # 0-0) bien avant la fin — le traiter comme FINISHED juste parce qu'un
+    # score existe classe les matchs en cours comme terminés dès le coup
+    # d'envoi, avec un score figé à l'instant du prochain poll (pas le score
+    # final). Voir incident du 29/08/2026 (Bournemouth-Everton marqué
+    # FINISHED 0-0 en plein "1H", Liverpool évalué sur un score intermédiaire).
+    if status is not None:
+        s = str(status).strip().upper()
+        if s:
+            mapping = {
+                "FT": "FINISHED",
+                "AET": "FINISHED",
+                "PEN": "FINISHED",
+                "NS": "NS",
+                "NOT STARTED": "NS",
+                "SCHEDULED": "NS",
+                "TIMED": "NS",
+                "POSTPONED": "POSTPONED",
+                "CANCELLED": "CANCELLED",
+            }
+            return mapping.get(s, s)
+
+    # Statut absent/vide : seul cas où on retombe sur une heuristique.
     if home_score is not None and away_score is not None:
         return "FINISHED"
 
-    if status is None:
-        # si pas de statut mais date passée -> score manquant
-        if date_value:
-            try:
-                d = str(date_value)[:19].replace("T", " ")
-                for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
-                    try:
-                        dt = datetime.strptime(d[:len(fmt)], fmt)
-                        if dt < datetime.now():
-                            return "MISSING_SCORE"
-                        return "NS"
-                    except ValueError:
-                        continue
-            except Exception:
-                pass
-        return "UNKNOWN"
-
-    s = str(status).strip().upper()
-    if not s:
-        return "UNKNOWN"
-
-    mapping = {
-        "FT": "FINISHED",
-        "AET": "FINISHED",
-        "PEN": "FINISHED",
-        "NS": "NS",
-        "NOT STARTED": "NS",
-        "SCHEDULED": "NS",
-        "TIMED": "NS",
-        "POSTPONED": "POSTPONED",
-        "CANCELLED": "CANCELLED",
-    }
-    return mapping.get(s, s)
+    if date_value:
+        try:
+            d = str(date_value)[:19].replace("T", " ")
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(d[:len(fmt)], fmt)
+                    if dt < datetime.now():
+                        return "MISSING_SCORE"
+                    return "NS"
+                except ValueError:
+                    continue
+        except Exception:
+            pass
+    return "UNKNOWN"
 
 
 def build_match_row(event: dict[str, Any], fallback_name: str, fallback_type: str, fallback_country: str | None, requested_season: str) -> tuple | None:
