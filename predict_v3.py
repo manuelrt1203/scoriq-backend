@@ -7,6 +7,7 @@ pour fonctionner indifféremment en SQLite et PostgreSQL.
 
 import json
 import math
+import sys
 import joblib
 import numpy as np
 import pandas as pd
@@ -636,9 +637,14 @@ def ensure_schema(conn):
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    target_date = date.today().isoformat()
+    # Mode rattrapage : `python predict_v3.py 2026-03-16` prédit les matchs de
+    # cette date-là (même déjà FINISHED) en n'utilisant que l'historique
+    # strictement antérieur (déjà garanti par le filtre DATE(m.date) < ? sur
+    # hist_matches) — donc pas de fuite du résultat réel dans la prédiction.
+    backdate = len(sys.argv) > 1
+    target_date = sys.argv[1] if backdate else date.today().isoformat()
     run_date    = datetime.now().isoformat(timespec="seconds")
-    print(f"predict_v3 — {target_date}", flush=True)
+    print(f"predict_v3 — {target_date}" + (" [backdate]" if backdate else ""), flush=True)
 
     with open(DC_PARAMS_PATH) as f:
         dc = json.load(f)
@@ -664,7 +670,7 @@ def main():
         FROM matches m
         WHERE DATE(m.date) = ?
           AND m.competition_type IN ({ph})
-          AND m.status != 'FINISHED'
+          {"" if backdate else "AND m.status != 'FINISHED'"}
           AND (
               COALESCE(m.source,'thesportsdb') = 'thesportsdb'
               OR NOT EXISTS (
