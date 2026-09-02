@@ -55,17 +55,28 @@ def ensure_predictions_table(conn):
         real_total_goals INTEGER,
         real_btts INTEGER,
         real_over_2_5 INTEGER,
+        real_over_1_5 INTEGER,
 
         is_correct_1x2 INTEGER,
         is_correct_score INTEGER,
         is_correct_btts INTEGER,
         is_correct_over_2_5 INTEGER,
+        is_correct_over_1_5 INTEGER,
 
         abs_error_home_goals REAL,
         abs_error_away_goals REAL,
         abs_error_total_goals REAL
     );
     """)
+
+    for col, col_type in [
+        ("real_over_1_5", "INTEGER"),
+        ("is_correct_over_1_5", "INTEGER"),
+    ]:
+        if not conn.column_exists("predictions_history", col):
+            conn.execute(f"ALTER TABLE predictions_history ADD COLUMN {col} {col_type}")
+            conn.commit()
+
     if conn.is_pg:
         conn.execute("""
             SELECT setval(
@@ -183,6 +194,7 @@ def evaluate_prediction_row(conn, pred_row):
     real_total_goals = home_goals + away_goals
     real_btts = 1 if home_goals > 0 and away_goals > 0 else 0
     real_over_2_5 = 1 if real_total_goals >= 3 else 0
+    real_over_1_5 = 1 if real_total_goals >= 2 else 0
 
     probs = {
         "1": pred_row["proba_home_win"] if pred_row["proba_home_win"] is not None else -1,
@@ -196,11 +208,13 @@ def evaluate_prediction_row(conn, pred_row):
 
     pred_btts = 1 if pred_row["btts_yes"] is not None and pred_row["btts_yes"] >= 0.5 else 0
     pred_over_2_5 = 1 if pred_row["over_2_5"] is not None and pred_row["over_2_5"] >= 0.5 else 0
+    pred_over_1_5 = 1 if pred_row["over_1_5"] is not None and pred_row["over_1_5"] >= 0.5 else 0
 
     is_correct_1x2 = 1 if pred_result == real_result else 0
     is_correct_score = 1 if pred_score == real_score else 0
     is_correct_btts = 1 if pred_btts == real_btts else 0
     is_correct_over_2_5 = 1 if pred_over_2_5 == real_over_2_5 else 0
+    is_correct_over_1_5 = 1 if pred_over_1_5 == real_over_1_5 else 0
 
     abs_error_home_goals = abs(pred_row["pred_home_goals"] - home_goals) if pred_row["pred_home_goals"] is not None else None
     abs_error_away_goals = abs(pred_row["pred_away_goals"] - away_goals) if pred_row["pred_away_goals"] is not None else None
@@ -216,10 +230,12 @@ def evaluate_prediction_row(conn, pred_row):
             real_total_goals = ?,
             real_btts = ?,
             real_over_2_5 = ?,
+            real_over_1_5 = ?,
             is_correct_1x2 = ?,
             is_correct_score = ?,
             is_correct_btts = ?,
             is_correct_over_2_5 = ?,
+            is_correct_over_1_5 = ?,
             abs_error_home_goals = ?,
             abs_error_away_goals = ?,
             abs_error_total_goals = ?
@@ -231,10 +247,12 @@ def evaluate_prediction_row(conn, pred_row):
         real_total_goals,
         real_btts,
         real_over_2_5,
+        real_over_1_5,
         is_correct_1x2,
         is_correct_score,
         is_correct_btts,
         is_correct_over_2_5,
+        is_correct_over_1_5,
         abs_error_home_goals,
         abs_error_away_goals,
         abs_error_total_goals,
@@ -253,6 +271,7 @@ def evaluate_prediction_row(conn, pred_row):
         "is_correct_score": is_correct_score,
         "is_correct_btts": is_correct_btts,
         "is_correct_over_2_5": is_correct_over_2_5,
+        "is_correct_over_1_5": is_correct_over_1_5,
         "abs_error_home_goals": abs_error_home_goals,
         "abs_error_away_goals": abs_error_away_goals,
         "abs_error_total_goals": abs_error_total_goals,
@@ -277,6 +296,7 @@ def build_summary(conn, prediction_run_date):
     correct_score = sum(r["is_correct_score"] or 0 for r in rows)
     correct_btts = sum(r["is_correct_btts"] or 0 for r in rows)
     correct_over = sum(r["is_correct_over_2_5"] or 0 for r in rows)
+    correct_over_15 = sum(r["is_correct_over_1_5"] or 0 for r in rows)
 
     home_errors = [r["abs_error_home_goals"] for r in rows if r["abs_error_home_goals"] is not None]
     away_errors = [r["abs_error_away_goals"] for r in rows if r["abs_error_away_goals"] is not None]
@@ -289,6 +309,7 @@ def build_summary(conn, prediction_run_date):
         "accuracy_score": correct_score / total,
         "accuracy_btts": correct_btts / total,
         "accuracy_over_2_5": correct_over / total,
+        "accuracy_over_1_5": correct_over_15 / total,
         "mae_home_goals": sum(home_errors) / len(home_errors) if home_errors else None,
         "mae_away_goals": sum(away_errors) / len(away_errors) if away_errors else None,
         "mae_total_goals": sum(total_errors) / len(total_errors) if total_errors else None,
@@ -313,6 +334,7 @@ def build_global_summary(conn):
     correct_score = sum(r["is_correct_score"]  or 0 for r in rows)
     correct_btts  = sum(r["is_correct_btts"]   or 0 for r in rows)
     correct_over  = sum(r["is_correct_over_2_5"] or 0 for r in rows)
+    correct_over_15 = sum(r["is_correct_over_1_5"] or 0 for r in rows)
 
     total_errors = [r["abs_error_total_goals"] for r in rows if r["abs_error_total_goals"] is not None]
 
@@ -322,6 +344,7 @@ def build_global_summary(conn):
         "accuracy_score":   correct_score / total,
         "accuracy_btts":    correct_btts  / total,
         "accuracy_over_2_5": correct_over / total,
+        "accuracy_over_1_5": correct_over_15 / total,
         "mae_total_goals":  sum(total_errors) / len(total_errors) if total_errors else None,
     }
 
@@ -397,6 +420,7 @@ def main():
         lines.append(f"Accuracy score exact : {global_summary['accuracy_score']:.2%}")
         lines.append(f"Accuracy BTTS        : {global_summary['accuracy_btts']:.2%}")
         lines.append(f"Accuracy Over 2.5    : {global_summary['accuracy_over_2_5']:.2%}")
+        lines.append(f"Accuracy Over 1.5    : {global_summary['accuracy_over_1_5']:.2%}")
         lines.append(f"MAE buts totaux      : {global_summary['mae_total_goals']:.2f}" if global_summary['mae_total_goals'] else "MAE buts totaux      : —")
 
     lines.append("")

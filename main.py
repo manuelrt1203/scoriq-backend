@@ -1044,6 +1044,7 @@ def stats_summary():
             SELECT
                 AVG(is_correct_1x2)        AS accuracy_1x2,
                 AVG(is_correct_btts)       AS accuracy_btts,
+                AVG(is_correct_over_1_5)   AS accuracy_over_1_5,
                 AVG(is_correct_over_2_5)   AS accuracy_over_2_5,
                 AVG(abs_error_total_goals) AS mae_total_goals
             FROM predictions_history
@@ -1056,7 +1057,7 @@ def stats_summary():
             evaluated_predictions=evaluated_predictions,
             accuracy_1x2=row["accuracy_1x2"],
             accuracy_btts=row["accuracy_btts"],
-            accuracy_over_1_5=None,  # colonne absente de la table
+            accuracy_over_1_5=row["accuracy_over_1_5"],
             accuracy_over_2_5=row["accuracy_over_2_5"],
             mae_total_goals=row["mae_total_goals"],
         )
