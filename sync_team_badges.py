@@ -15,28 +15,13 @@ import unicodedata
 import requests
 
 import db_conn
+import team_aliases
 
 API_KEY = "123"
 SEARCH_URL = f"https://www.thesportsdb.com/api/v1/json/{API_KEY}/searchteams.php"
 REQUEST_TIMEOUT = 15
 SLEEP_BETWEEN_REQUESTS = 4.0
 MAX_RETRIES = 4
-
-# Variantes de noms connues qui désignent la même équipe mais fragmentent son
-# historique dans `matches` (ce qui casse à la fois les badges ET les features
-# de prédiction, cf. incident Lille-PSG du 28/08/2026). Clé = variante à
-# éliminer, valeur = nom canonique à conserver (celui utilisé par les fixtures
-# à venir / le plus fréquent).
-TEAM_NAME_MERGES = {
-    "Paris SG": "Paris Saint-Germain",
-    "Paris Saint-Germain FC": "Paris Saint-Germain",
-    "FC Koln": "FC Köln",
-    "Köln": "FC Köln",
-    "Porto": "FC Porto",
-    "Manchester United FC": "Manchester United",
-    "Sporting Clube de Braga": "Braga",
-    "Sporting Clube de Portugal": "Sporting CP",
-}
 
 # Alias de recherche TheSportsDB pour les noms qui ne matchent pas tels quels.
 SEARCH_ALIASES = {
@@ -133,15 +118,11 @@ def choose_best(results: list[dict], wanted_name: str, wanted_league: str) -> di
 
 
 def merge_team_name_variants(conn: db_conn.Connection) -> None:
-    for old_name, canonical in TEAM_NAME_MERGES.items():
-        for table, col in [
-            ("matches", "home"), ("matches", "away"),
-            ("odds", "home_team"), ("odds", "away_team"),
-            ("predictions_history", "home_team"), ("predictions_history", "away_team"),
-            ("shots_data", "home_team"), ("shots_data", "away_team"),
-        ]:
-            conn.execute(f"UPDATE {table} SET {col} = ? WHERE {col} = ?", (canonical, old_name))
-    conn.commit()
+    """Source des alias : table `team_aliases` (voir team_aliases.py). Ajouter un
+    nouveau cas se fait par `python team_aliases.py add "..." "..."`, plus par
+    édition de ce fichier."""
+    team_aliases.seed_known_aliases(conn)
+    team_aliases.apply_all(conn)
 
 
 def find_teams_missing_badges(conn: db_conn.Connection) -> list[dict]:
