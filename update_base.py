@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import db_conn
+import team_aliases
 API_KEY = "123"
 BASE_URL = f"https://www.thesportsdb.com/api/v1/json/{API_KEY}"
 
@@ -270,7 +271,27 @@ def build_match_row(event: dict[str, Any], fallback_name: str, fallback_type: st
     )
 
 
+_alias_map_cache: dict[str, str] | None = None
+
+
+def resolve_team_name(conn: db_conn.Connection, name: str) -> str:
+    """Canonicalise un nom d'équipe à l'ingestion pour empêcher TheSportsDB de
+    refragmenter l'historique (ex: réimporter "Porto" au lieu de "FC Porto"
+    pour la saison suivante — récidive constatée le 02/09/2026). Cache en
+    mémoire du process, chargé une seule fois par run du script."""
+    global _alias_map_cache
+    if _alias_map_cache is None:
+        _alias_map_cache = team_aliases.load_alias_map(conn)
+    return _alias_map_cache.get(name, name)
+
+
 def upsert_match(conn: db_conn.Connection, row: tuple) -> None:
+    row = (
+        *row[:5],
+        resolve_team_name(conn, row[5]),
+        resolve_team_name(conn, row[6]),
+        *row[7:],
+    )
     conn.execute("""
         INSERT INTO matches (
             id, idLeague, season, round, date, home, away,
