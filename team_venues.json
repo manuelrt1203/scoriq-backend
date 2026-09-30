@@ -1,0 +1,2277 @@
+{
+ "_source": "Coordonnées des stades des équipes de championnat (LEAGUE). TheSportsDB strMap, repli géocodage Open-Meteo de la ville, 24 homonymes corrigés à la main. Généré le 2026-10-01.",
+ "teams": {
+  "AC Milan": {
+   "lat": 45.47806,
+   "lon": 9.12389,
+   "stadium": "Stadio Giuseppe Meazza",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133667"
+  },
+  "ADO Den Haag": {
+   "lat": 52.0616,
+   "lon": 4.3831,
+   "stadium": "Cars Jeans Stadion",
+   "country": "NL",
+   "source": "manuel",
+   "tsdb_id": "133769"
+  },
+  "AS Nancy Lorraine": {
+   "lat": 48.6955,
+   "lon": 6.21069,
+   "stadium": "Stade Marcel-Picot",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133710"
+  },
+  "AVS": {
+   "lat": 41.3697,
+   "lon": -8.4103,
+   "stadium": "Estádio Clube Desportivo das Aves",
+   "country": "PT",
+   "source": "manuel",
+   "tsdb_id": "147479"
+  },
+  "AVS Futebol SAD": {
+   "lat": 41.3697,
+   "lon": -8.4103,
+   "stadium": "Estádio Clube Desportivo das Aves",
+   "country": "PT",
+   "source": "manuel",
+   "tsdb_id": "147479"
+  },
+  "AZ Alkmaar": {
+   "lat": 52.6125,
+   "lon": 4.74167,
+   "stadium": "AFAS Stadion Alkmaar",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133767"
+  },
+  "Adana Demirspor": {
+   "lat": 37.06333,
+   "lon": 35.375,
+   "stadium": "Yeni Adana Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "138982"
+  },
+  "Ajaccio": {
+   "lat": 41.93108,
+   "lon": 8.77673,
+   "stadium": "Stade Michel Moretti",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133702"
+  },
+  "Ajax": {
+   "lat": 52.31417,
+   "lon": 4.94194,
+   "stadium": "Johan Cruijff ArenA",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133772"
+  },
+  "Alanyaspor": {
+   "lat": 36.5626,
+   "lon": 32.0792,
+   "stadium": "Gain Park Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "135676"
+  },
+  "Alaves": {
+   "lat": 42.83212,
+   "lon": -2.72112,
+   "stadium": "Ciudad Deportiva José Luis Compañón",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "144771"
+  },
+  "Almere City FC": {
+   "lat": 52.37025,
+   "lon": 5.21413,
+   "stadium": "Yanmar Stadion",
+   "country": "NL",
+   "source": "geocoding",
+   "tsdb_id": "137996"
+  },
+  "Almeria": {
+   "lat": 36.84,
+   "lon": -2.43528,
+   "stadium": "UD Almería Stadium",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133817"
+  },
+  "Alverca": {
+   "lat": 38.89791,
+   "lon": -9.035,
+   "stadium": "Complexo Desportivo FC Alverca",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "143704"
+  },
+  "Amiens": {
+   "lat": 49.89417,
+   "lon": 2.26333,
+   "stadium": "Stade de la Licorne",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "135658"
+  },
+  "Angers": {
+   "lat": 47.46046,
+   "lon": -0.53074,
+   "stadium": "Stade Raymond Kopa",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "134709"
+  },
+  "Ankaragucu": {
+   "lat": 39.98028,
+   "lon": 32.61389,
+   "stadium": "Eryaman Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133791"
+  },
+  "Antalyaspor": {
+   "lat": 36.88828,
+   "lon": 30.66844,
+   "stadium": "Corendon Airlines Park",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133799"
+  },
+  "Arminia": {
+   "lat": 52.03194,
+   "lon": 8.51667,
+   "stadium": "SchücoArena",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133852"
+  },
+  "Arouca": {
+   "lat": 40.93057,
+   "lon": -8.24488,
+   "stadium": "Estádio Municipal de Arouca",
+   "country": "PT",
+   "source": "geocoding",
+   "tsdb_id": "134387"
+  },
+  "Arsenal": {
+   "lat": 51.55667,
+   "lon": -0.10611,
+   "stadium": "Emirates Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133604"
+  },
+  "Aston Villa": {
+   "lat": 52.5092,
+   "lon": -1.8847,
+   "stadium": "Villa Park",
+   "country": "GB",
+   "source": "manuel",
+   "tsdb_id": "133601"
+  },
+  "Atalanta": {
+   "lat": 45.70889,
+   "lon": 9.68083,
+   "stadium": "New Balance Arena",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "134782"
+  },
+  "Ath Bilbao": {
+   "lat": 43.2643,
+   "lon": -2.9504,
+   "stadium": "San Mamés Barria",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133727"
+  },
+  "Ath Madrid": {
+   "lat": 40.4362,
+   "lon": -3.5995,
+   "stadium": null,
+   "country": "ES",
+   "source": "manuel",
+   "tsdb_id": null
+  },
+  "Athletic Bilbao": {
+   "lat": 43.2643,
+   "lon": -2.9504,
+   "stadium": "San Mamés Barria",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133727"
+  },
+  "Atletico Madrid": {
+   "lat": 40.43611,
+   "lon": -3.59944,
+   "stadium": "Riyadh Air Metropolitano",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133729"
+  },
+  "Atlético Madrid": {
+   "lat": 40.43611,
+   "lon": -3.59944,
+   "stadium": "Riyadh Air Metropolitano",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133729"
+  },
+  "Augsburg": {
+   "lat": 48.37154,
+   "lon": 10.89851,
+   "stadium": "WWK Arena",
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": "133652"
+  },
+  "Auxerre": {
+   "lat": 47.78675,
+   "lon": 3.58866,
+   "stadium": "Stade de l'Abbé Deschamps",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "134788"
+  },
+  "BB Bodrumspor": {
+   "lat": 37.03833,
+   "lon": 27.42917,
+   "stadium": "Bodrum İlçe Stadyumu",
+   "country": "TR",
+   "source": "geocoding",
+   "tsdb_id": "138974"
+  },
+  "Barcelona": {
+   "lat": 41.38083,
+   "lon": 2.12278,
+   "stadium": "Spotify Camp Nou",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133739"
+  },
+  "Bastia": {
+   "lat": 42.65139,
+   "lon": 9.44278,
+   "stadium": "Stade Armand Cesari",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133933"
+  },
+  "Bayer Leverkusen": {
+   "lat": 51.0303,
+   "lon": 6.98432,
+   "stadium": "BayArena",
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": "133666"
+  },
+  "Bayern Munich": {
+   "lat": 48.21878,
+   "lon": 11.62475,
+   "stadium": "Allianz Arena",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133664"
+  },
+  "Benevento": {
+   "lat": 41.11639,
+   "lon": 14.78111,
+   "stadium": "Stadio Ciro Vigorito",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "134688"
+  },
+  "Benfica": {
+   "lat": 38.7528,
+   "lon": -9.1847,
+   "stadium": "Estádio da Luz",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "134108"
+  },
+  "Besiktas": {
+   "lat": 41.03917,
+   "lon": 28.99472,
+   "stadium": "Tüpraş Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133794"
+  },
+  "Betis": {
+   "lat": 37.38283,
+   "lon": -5.97317,
+   "stadium": "",
+   "country": "ES",
+   "source": "geocoding",
+   "tsdb_id": "144774"
+  },
+  "Beşiktaş": {
+   "lat": 41.03917,
+   "lon": 28.99472,
+   "stadium": "Tüpraş Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133794"
+  },
+  "Boavista": {
+   "lat": 41.16222,
+   "lon": -8.64278,
+   "stadium": "Estádio do Bessa Século XXI",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "134588"
+  },
+  "Bochum": {
+   "lat": 51.49,
+   "lon": 7.23667,
+   "stadium": "Vonovia Ruhrstadion",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133839"
+  },
+  "Bologna": {
+   "lat": 44.49222,
+   "lon": 11.30972,
+   "stadium": "Stadio Renato Dall'Ara",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "134781"
+  },
+  "Bordeaux": {
+   "lat": 44.89722,
+   "lon": -0.56167,
+   "stadium": "Stade Atlantique",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133716"
+  },
+  "Borussia Dortmund": {
+   "lat": 51.4925,
+   "lon": 7.45167,
+   "stadium": "Signal Iduna Park",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133650"
+  },
+  "Borussia Mönchengladbach": {
+   "lat": 51.17464,
+   "lon": 6.38541,
+   "stadium": "Stadion im Borussia-Park",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "134779"
+  },
+  "Bournemouth": {
+   "lat": 50.73528,
+   "lon": -1.83833,
+   "stadium": "Vitality Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "134301"
+  },
+  "Braga": {
+   "lat": 41.5625,
+   "lon": -8.4299,
+   "stadium": "Estádio Municipal de Braga",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "134098"
+  },
+  "Braunschweig": {
+   "lat": 52.26594,
+   "lon": 10.52673,
+   "stadium": null,
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": null
+  },
+  "Brentford": {
+   "lat": 51.49083,
+   "lon": -0.28861,
+   "stadium": "Brentford Community Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "134355"
+  },
+  "Brescia": {
+   "lat": 45.57056,
+   "lon": 10.23694,
+   "stadium": "Stadio Mario Rigamonti",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133690"
+  },
+  "Brest": {
+   "lat": 48.40306,
+   "lon": -4.46167,
+   "stadium": "Stade Francis-Le Blé",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133704"
+  },
+  "Brighton": {
+   "lat": 51.09972,
+   "lon": -0.19472,
+   "stadium": "Broadfield Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "140222"
+  },
+  "Brighton and Hove Albion": {
+   "lat": 50.86194,
+   "lon": -0.08333,
+   "stadium": "American Express Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133619"
+  },
+  "Burnley": {
+   "lat": 53.8,
+   "lon": -2.23333,
+   "stadium": "Turf Moor",
+   "country": "GB",
+   "source": "geocoding",
+   "tsdb_id": "133623"
+  },
+  "CD Nacional de Madeira": {
+   "lat": 32.67063,
+   "lon": -16.88352,
+   "stadium": "Estádio da Madeira",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "134109"
+  },
+  "Cadiz": {
+   "lat": 36.50278,
+   "lon": -6.27306,
+   "stadium": "Estadio Nuevo Mirandilla",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "134222"
+  },
+  "Caen": {
+   "lat": 49.17946,
+   "lon": -0.39677,
+   "stadium": "Stade Michel d'Ornano",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "134787"
+  },
+  "Cagliari": {
+   "lat": 39.2,
+   "lon": 9.1375,
+   "stadium": "Unipol Domus",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "134783"
+  },
+  "Cardiff City": {
+   "lat": 51.48,
+   "lon": -3.18,
+   "stadium": "Cardiff City Stadium",
+   "country": "GB",
+   "source": "geocoding",
+   "tsdb_id": "133637"
+  },
+  "Carpi": {
+   "lat": 44.77556,
+   "lon": 10.88167,
+   "stadium": "Stadio Sandro Cabassi",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "143906"
+  },
+  "Casa Pia": {
+   "lat": 39.34444,
+   "lon": -8.93528,
+   "stadium": "Estádio Municipal de Rio Maior",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "138864"
+  },
+  "Catania": {
+   "lat": 37.51583,
+   "lon": 15.07139,
+   "stadium": "Stadio Angelo Massimino",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133671"
+  },
+  "Celta Vigo": {
+   "lat": 42.2118,
+   "lon": -8.7397,
+   "stadium": "Estadio Abanca-Balaídos",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133937"
+  },
+  "Cesena": {
+   "lat": 44.14056,
+   "lon": 12.26194,
+   "stadium": "Stadio Dino Manuzzi",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133669"
+  },
+  "Chaves": {
+   "lat": 41.7506,
+   "lon": -7.46499,
+   "stadium": "Estádio Municipal Eng.º Manuel Branco Teixeira",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "135674"
+  },
+  "Chelsea": {
+   "lat": 51.48167,
+   "lon": -0.19111,
+   "stadium": "Stamford Bridge",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133610"
+  },
+  "Chievo Verona": {
+   "lat": 45.4353,
+   "lon": 10.9686,
+   "stadium": null,
+   "country": "IT",
+   "source": "manuel",
+   "tsdb_id": null
+  },
+  "Clermont Foot": {
+   "lat": 45.77969,
+   "lon": 3.08682,
+   "stadium": "Stade Gabriel Montpied",
+   "country": "FR",
+   "source": "geocoding",
+   "tsdb_id": "134713"
+  },
+  "Como": {
+   "lat": 45.81389,
+   "lon": 9.07222,
+   "stadium": "Stadio Giuseppe Sinigaglia",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "134243"
+  },
+  "Cremonese": {
+   "lat": 45.13325,
+   "lon": 10.02129,
+   "stadium": "Stadio Giovanni Zini",
+   "country": "IT",
+   "source": "geocoding",
+   "tsdb_id": "134224"
+  },
+  "Crotone": {
+   "lat": 39.07917,
+   "lon": 17.11667,
+   "stadium": "Stadio Ezio Scida",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133693"
+  },
+  "Crystal Palace": {
+   "lat": 51.39833,
+   "lon": -0.08556,
+   "stadium": "Selhurst Park",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133632"
+  },
+  "Córdoba CF": {
+   "lat": 37.89155,
+   "lon": -4.77275,
+   "stadium": "Estadio Nuevo Arcángel",
+   "country": "ES",
+   "source": "geocoding",
+   "tsdb_id": "134627"
+  },
+  "Darmstadt": {
+   "lat": 49.85778,
+   "lon": 8.67222,
+   "stadium": "Merck-Stadion am Böllenfalltor",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "134693"
+  },
+  "Deportivo": {
+   "lat": 43.3686,
+   "lon": -8.4174,
+   "stadium": "Estadio Deportivo Cali",
+   "country": "ES",
+   "source": "manuel",
+   "tsdb_id": "137610"
+  },
+  "Deportivo Alavés": {
+   "lat": 42.83722,
+   "lon": -2.68806,
+   "stadium": "Estadio de Mendizorroza",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "134221"
+  },
+  "Dijon": {
+   "lat": 47.32444,
+   "lon": 5.06833,
+   "stadium": "Stade Gaston-Gérard",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133718"
+  },
+  "Dortmund": {
+   "lat": 51.48333,
+   "lon": 7.55,
+   "stadium": "Urlaubsguru-Waldstadion",
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": "155917"
+  },
+  "Dusseldorf": {
+   "lat": 51.22319,
+   "lon": 6.77927,
+   "stadium": null,
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": null
+  },
+  "ESTAC Troyes": {
+   "lat": 48.30756,
+   "lon": 4.09846,
+   "stadium": "Stade de l'Aube",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "134789"
+  },
+  "Eibar": {
+   "lat": 43.18171,
+   "lon": -2.4758,
+   "stadium": "Estadio Municipal de Ipurúa",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "134626"
+  },
+  "Ein Frankfurt": {
+   "lat": 50.06806,
+   "lon": 8.64581,
+   "stadium": "Deutsche Bank Park",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133814"
+  },
+  "Eintracht Frankfurt": {
+   "lat": 50.06806,
+   "lon": 8.64581,
+   "stadium": "Deutsche Bank Park",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133814"
+  },
+  "Elche": {
+   "lat": 38.26694,
+   "lon": -0.66333,
+   "stadium": "Estadio Martínez Valero",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "134384"
+  },
+  "Empoli": {
+   "lat": 43.72639,
+   "lon": 10.955,
+   "stadium": "Stadio Carlo Castellani",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133695"
+  },
+  "Espanyol": {
+   "lat": 41.34778,
+   "lon": 2.07556,
+   "stadium": "RCDE Stadium",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133734"
+  },
+  "Estoril Praia": {
+   "lat": 38.70571,
+   "lon": -9.39773,
+   "stadium": "Estádio António Coimbra da Mota",
+   "country": "PT",
+   "source": "geocoding",
+   "tsdb_id": "134106"
+  },
+  "Estoril-Praia": {
+   "lat": 38.7069,
+   "lon": -9.3975,
+   "stadium": null,
+   "country": "PT",
+   "source": "manuel",
+   "tsdb_id": null
+  },
+  "Estrela Amadora": {
+   "lat": 38.75194,
+   "lon": -9.22806,
+   "stadium": "Estádio José Gomes",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "140008"
+  },
+  "Everton": {
+   "lat": 53.4251,
+   "lon": -3.0028,
+   "stadium": "Hill Dickinson Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133615"
+  },
+  "Excelsior": {
+   "lat": 51.91694,
+   "lon": 4.52056,
+   "stadium": "Van Donge and De Roo Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133757"
+  },
+  "Eyüpspor": {
+   "lat": 41.03278,
+   "lon": 28.9725,
+   "stadium": "Recep Tayyip Erdoğan Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "138977"
+  },
+  "FC Augsburg": {
+   "lat": 48.37154,
+   "lon": 10.89851,
+   "stadium": "WWK Arena",
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": "133652"
+  },
+  "FC Emmen": {
+   "lat": 52.77917,
+   "lon": 6.90694,
+   "stadium": "De Oude Meerdijk",
+   "country": "NL",
+   "source": "geocoding",
+   "tsdb_id": "136191"
+  },
+  "FC Groningen": {
+   "lat": 53.2067,
+   "lon": 6.5919,
+   "stadium": null,
+   "country": "NL",
+   "source": "manuel",
+   "tsdb_id": null
+  },
+  "FC Heidenheim": {
+   "lat": 48.66861,
+   "lon": 10.13944,
+   "stadium": "Voith-Arena",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "134696"
+  },
+  "FC Koln": {
+   "lat": 50.9336,
+   "lon": 6.875,
+   "stadium": "RheinEnergieStadion",
+   "country": "DE",
+   "source": "manuel",
+   "tsdb_id": "133654"
+  },
+  "FC Köln": {
+   "lat": 50.9336,
+   "lon": 6.875,
+   "stadium": "RheinEnergieStadion",
+   "country": "DE",
+   "source": "manuel",
+   "tsdb_id": "133654"
+  },
+  "FC Porto": {
+   "lat": 41.1618,
+   "lon": -8.5839,
+   "stadium": null,
+   "country": "PT",
+   "source": "manuel",
+   "tsdb_id": null
+  },
+  "FC Twente": {
+   "lat": 52.23667,
+   "lon": 6.8375,
+   "stadium": "De Grolsch Veste",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133774"
+  },
+  "FC Utrecht": {
+   "lat": 52.07833,
+   "lon": 5.14583,
+   "stadium": "Stadion Galgenwaard",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133764"
+  },
+  "FC Volendam": {
+   "lat": 52.49444,
+   "lon": 5.06639,
+   "stadium": "Kras Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133867"
+  },
+  "Famalicao": {
+   "lat": 41.4013,
+   "lon": -8.5225,
+   "stadium": "Estádio Municipal 22 de Junho",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "136854"
+  },
+  "Fatih Karagümrük": {
+   "lat": 41.07444,
+   "lon": 28.76583,
+   "stadium": "Atatürk Olimpiyat Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "138983"
+  },
+  "Fenerbahce": {
+   "lat": 40.98778,
+   "lon": 29.03694,
+   "stadium": "Chobani Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133807"
+  },
+  "Fenerbahçe": {
+   "lat": 40.98778,
+   "lon": 29.03694,
+   "stadium": "Chobani Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133807"
+  },
+  "Feyenoord": {
+   "lat": 51.89389,
+   "lon": 4.52306,
+   "stadium": "Stadion Feyenoord",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133758"
+  },
+  "Fiorentina": {
+   "lat": 43.78083,
+   "lon": 11.28222,
+   "stadium": "Stadio Artemio Franchi",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133674"
+  },
+  "Fortuna Sittard": {
+   "lat": 50.99194,
+   "lon": 5.84361,
+   "stadium": "Fortuna Sittard Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "134264"
+  },
+  "Freiburg": {
+   "lat": 48.0216,
+   "lon": 7.8297,
+   "stadium": "Europa-Park Stadion",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133653"
+  },
+  "Frosinone": {
+   "lat": 41.63417,
+   "lon": 13.32194,
+   "stadium": "Stadio Benito Stirpe",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133818"
+  },
+  "Fulham": {
+   "lat": 51.475,
+   "lon": -0.22167,
+   "stadium": "Craven Cottage",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133600"
+  },
+  "GFC Ajaccio": {
+   "lat": 41.91886,
+   "lon": 8.73812,
+   "stadium": "Stade Ange Casanova",
+   "country": "FR",
+   "source": "geocoding",
+   "tsdb_id": "134716"
+  },
+  "Galatasaray": {
+   "lat": 41.10278,
+   "lon": 28.99056,
+   "stadium": "Rams Park",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133804"
+  },
+  "Gaziantep": {
+   "lat": 37.12389,
+   "lon": 37.3825,
+   "stadium": "Gaziantep Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "138092"
+  },
+  "Gaziantep FK": {
+   "lat": 37.12389,
+   "lon": 37.3825,
+   "stadium": "Gaziantep Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "138092"
+  },
+  "Genoa": {
+   "lat": 44.41639,
+   "lon": 8.9525,
+   "stadium": "Stadio Luigi Ferraris",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133675"
+  },
+  "Gençlerbirliği": {
+   "lat": 39.98028,
+   "lon": 32.61389,
+   "stadium": "Eryaman Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133798"
+  },
+  "Getafe": {
+   "lat": 40.32556,
+   "lon": -3.71472,
+   "stadium": "Estadio Coliseum",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133731"
+  },
+  "Gil Vicente": {
+   "lat": 41.53174,
+   "lon": -8.61843,
+   "stadium": "Estádio Cidade de Barcelos",
+   "country": "PT",
+   "source": "geocoding",
+   "tsdb_id": "134113"
+  },
+  "Girona": {
+   "lat": 41.96139,
+   "lon": 2.82861,
+   "stadium": "Estadi Municipal de Montilivi",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "134700"
+  },
+  "Go Ahead Eagles": {
+   "lat": 52.26028,
+   "lon": 6.1725,
+   "stadium": "De Adelaarshorst",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "134304"
+  },
+  "Goztepe": {
+   "lat": 38.39682,
+   "lon": 27.07595,
+   "stadium": "Gürsel Aksel Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "135891"
+  },
+  "Granada": {
+   "lat": 37.15306,
+   "lon": -3.59583,
+   "stadium": "Estadio Municipal Nuevo Los Cármenes",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133721"
+  },
+  "Greuther Furth": {
+   "lat": 49.48694,
+   "lon": 10.99917,
+   "stadium": "Sportpark Ronhof Thomas Sommer",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "134099"
+  },
+  "Groningen": {
+   "lat": 53.21917,
+   "lon": 6.56667,
+   "stadium": "Euroborg",
+   "country": "NL",
+   "source": "geocoding",
+   "tsdb_id": "133762"
+  },
+  "Guimaraes": {
+   "lat": 41.44583,
+   "lon": -8.30111,
+   "stadium": "Estádio D. Afonso Henriques",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "134115"
+  },
+  "Guingamp": {
+   "lat": 48.56639,
+   "lon": -3.16472,
+   "stadium": "Stade du Roudourou",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "134244"
+  },
+  "Göztepe": {
+   "lat": 38.39682,
+   "lon": 27.07595,
+   "stadium": "Gürsel Aksel Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "135891"
+  },
+  "Hamburg": {
+   "lat": 53.55073,
+   "lon": 9.99302,
+   "stadium": "Volksparkstadion",
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": "133651"
+  },
+  "Hannover": {
+   "lat": 52.36,
+   "lon": 9.73111,
+   "stadium": "Heinz-von-Heiden-Arena",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133656"
+  },
+  "Hatayspor": {
+   "lat": 36.20655,
+   "lon": 36.15722,
+   "stadium": "Yeni Hatay Stadyumu",
+   "country": "TR",
+   "source": "geocoding",
+   "tsdb_id": "138944"
+  },
+  "Heerenveen": {
+   "lat": 52.95861,
+   "lon": 5.93611,
+   "stadium": "Abe Lenstra Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133759"
+  },
+  "Hellas Verona": {
+   "lat": 45.43528,
+   "lon": 10.96861,
+   "stadium": "Stadio Marcantonio Bentegodi",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "134784"
+  },
+  "Heracles Almelo": {
+   "lat": 52.33861,
+   "lon": 6.64972,
+   "stadium": "Asito Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133766"
+  },
+  "Hertha Berlin": {
+   "lat": 52.52437,
+   "lon": 13.41053,
+   "stadium": "",
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": "156039"
+  },
+  "Hoffenheim": {
+   "lat": 49.23806,
+   "lon": 8.8875,
+   "stadium": "PreZero Arena",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133657"
+  },
+  "Holstein Kiel": {
+   "lat": 54.34917,
+   "lon": 10.12361,
+   "stadium": "Holstein-Stadion",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "136027"
+  },
+  "Huesca": {
+   "lat": 42.13194,
+   "lon": -0.42444,
+   "stadium": "Estadio El Alcoraz",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "135454"
+  },
+  "Hull City": {
+   "lat": 53.74611,
+   "lon": -0.36778,
+   "stadium": "The MKM Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133617"
+  },
+  "Ingolstadt": {
+   "lat": 48.74556,
+   "lon": 11.48556,
+   "stadium": "Audi-Sportpark",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "134694"
+  },
+  "Inter": {
+   "lat": 45.4781,
+   "lon": 9.124,
+   "stadium": "Estadio Antonio Solana",
+   "country": "IT",
+   "source": "manuel",
+   "tsdb_id": "144244"
+  },
+  "Inter Milan": {
+   "lat": 45.47806,
+   "lon": 9.12389,
+   "stadium": "Stadio Giuseppe Meazza",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133681"
+  },
+  "Ipswich": {
+   "lat": 52.05917,
+   "lon": 1.15545,
+   "stadium": null,
+   "country": "GB",
+   "source": "geocoding",
+   "tsdb_id": null
+  },
+  "Istanbul Basaksehir": {
+   "lat": 41.12278,
+   "lon": 28.80861,
+   "stadium": "Başakşehir Fatih Terim Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "134589"
+  },
+  "Istanbulspor": {
+   "lat": 41.01384,
+   "lon": 28.94966,
+   "stadium": "Esenyurt Necmi Kadıoğlu Stadyumu",
+   "country": "TR",
+   "source": "geocoding",
+   "tsdb_id": "134238"
+  },
+  "Juventus": {
+   "lat": 45.10944,
+   "lon": 7.64111,
+   "stadium": "Allianz Stadium Turin",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133676"
+  },
+  "Karagumruk": {
+   "lat": 41.07444,
+   "lon": 28.76583,
+   "stadium": "Atatürk Olimpiyat Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "138983"
+  },
+  "Kasimpasa": {
+   "lat": 41.03278,
+   "lon": 28.9725,
+   "stadium": "Recep Tayyip Erdoğan Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133834"
+  },
+  "Kasımpaşa": {
+   "lat": 41.03278,
+   "lon": 28.9725,
+   "stadium": "Recep Tayyip Erdoğan Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133834"
+  },
+  "Kayserispor": {
+   "lat": 38.73722,
+   "lon": 35.42306,
+   "stadium": "RHG Enertürk Enerji Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133802"
+  },
+  "Kocaelispor": {
+   "lat": 40.77472,
+   "lon": 30.0175,
+   "stadium": "Kocaeli Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133870"
+  },
+  "Konyaspor": {
+   "lat": 37.946,
+   "lon": 32.488,
+   "stadium": "Konya Büyükşehir Belediye Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133835"
+  },
+  "Las Palmas": {
+   "lat": 28.10028,
+   "lon": -15.45667,
+   "stadium": "Estadio de Gran Canaria",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "134259"
+  },
+  "Lazio": {
+   "lat": 41.93389,
+   "lon": 12.45472,
+   "stadium": "Stadio Olimpico",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133668"
+  },
+  "Le Havre": {
+   "lat": 49.49889,
+   "lon": 0.16972,
+   "stadium": "Stade Océane",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133862"
+  },
+  "Lecce": {
+   "lat": 40.36528,
+   "lon": 18.20889,
+   "stadium": "Stadio Via del mare",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133678"
+  },
+  "Leeds United": {
+   "lat": 53.77778,
+   "lon": -1.57222,
+   "stadium": "Elland Road",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133635"
+  },
+  "Leganes": {
+   "lat": 40.3404,
+   "lon": -3.7607,
+   "stadium": "Ontime Butarque",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "134701"
+  },
+  "Leicester": {
+   "lat": 52.6386,
+   "lon": -1.13169,
+   "stadium": "",
+   "country": "GB",
+   "source": "geocoding",
+   "tsdb_id": "137302"
+  },
+  "Lens": {
+   "lat": 50.43278,
+   "lon": 2.815,
+   "stadium": "Stade Bollaert-Delelis",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133822"
+  },
+  "Levante": {
+   "lat": 39.49472,
+   "lon": -0.36417,
+   "stadium": "Estadio Ciudad de Valencia",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133732"
+  },
+  "Leverkusen": {
+   "lat": 51.0303,
+   "lon": 6.98432,
+   "stadium": "BayArena",
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": "133666"
+  },
+  "Lille": {
+   "lat": 50.6119,
+   "lon": 3.1305,
+   "stadium": null,
+   "country": "FR",
+   "source": "manuel",
+   "tsdb_id": null
+  },
+  "Liverpool": {
+   "lat": 53.43083,
+   "lon": -2.96083,
+   "stadium": "Anfield",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133602"
+  },
+  "Livorno": {
+   "lat": 43.52667,
+   "lon": 10.31417,
+   "stadium": "Stadio Armando Picchi",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133694"
+  },
+  "Lorient": {
+   "lat": 47.74889,
+   "lon": -3.36944,
+   "stadium": "Stade du Moustoir",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133715"
+  },
+  "Luton": {
+   "lat": 51.88417,
+   "lon": -0.43167,
+   "stadium": "Kenilworth Road",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133888"
+  },
+  "Lyon": {
+   "lat": 45.76522,
+   "lon": 4.98213,
+   "stadium": "Groupama Stadium",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133713"
+  },
+  "Mainz": {
+   "lat": 49.98417,
+   "lon": 8.22417,
+   "stadium": "MEWA ARENA",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133665"
+  },
+  "Malaga": {
+   "lat": 36.72016,
+   "lon": -4.42034,
+   "stadium": "Estadio La Rosaleda",
+   "country": "ES",
+   "source": "geocoding",
+   "tsdb_id": "133736"
+  },
+  "Mallorca": {
+   "lat": 39.59,
+   "lon": 2.63,
+   "stadium": "Estadi Mallorca Son Moix",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133733"
+  },
+  "Manchester City": {
+   "lat": 53.48306,
+   "lon": -2.20028,
+   "stadium": "Etihad Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133613"
+  },
+  "Manchester United": {
+   "lat": 53.46306,
+   "lon": -2.29139,
+   "stadium": "Old Trafford",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133612"
+  },
+  "Marseille": {
+   "lat": 43.26972,
+   "lon": 5.39583,
+   "stadium": "Orange Vélodrome",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133707"
+  },
+  "Metz": {
+   "lat": 49.10972,
+   "lon": 6.15944,
+   "stadium": "Stade Saint-Symphorien",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133883"
+  },
+  "Middlesbrough": {
+   "lat": 54.57833,
+   "lon": -1.21694,
+   "stadium": "Riverside Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133628"
+  },
+  "Milan": {
+   "lat": 45.46427,
+   "lon": 9.18951,
+   "stadium": "Puma House of Football",
+   "country": "IT",
+   "source": "geocoding",
+   "tsdb_id": "147946"
+  },
+  "Monaco": {
+   "lat": 43.7275,
+   "lon": 7.41556,
+   "stadium": "Stade Louis II",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133823"
+  },
+  "Montpellier": {
+   "lat": 43.62222,
+   "lon": 3.81194,
+   "stadium": "Stade de la Mosson",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133709"
+  },
+  "Monza": {
+   "lat": 45.58278,
+   "lon": 9.30806,
+   "stadium": "U-Power Stadium",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "134270"
+  },
+  "Moreirense": {
+   "lat": 41.37806,
+   "lon": -8.35472,
+   "stadium": "Estádio Comendador Joaquim de Almeida Freitas",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "134112"
+  },
+  "Mönchengladbach": {
+   "lat": 51.17464,
+   "lon": 6.38541,
+   "stadium": "Stadion im Borussia-Park",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "134779"
+  },
+  "NAC Breda": {
+   "lat": 51.59556,
+   "lon": 4.75028,
+   "stadium": "Rat Verlegh Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133773"
+  },
+  "NEC Nijmegen": {
+   "lat": 51.8225,
+   "lon": 5.83667,
+   "stadium": "Goffertstadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133760"
+  },
+  "Nacional de Madeira": {
+   "lat": 32.67063,
+   "lon": -16.88352,
+   "stadium": "Estádio da Madeira",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "134109"
+  },
+  "Nantes": {
+   "lat": 47.256,
+   "lon": -1.525,
+   "stadium": "Stade de la Beaujoire - Louis Fonteneau",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133861"
+  },
+  "Napoli": {
+   "lat": 40.828,
+   "lon": 14.193,
+   "stadium": "Stadio Diego Armando Maradona",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133670"
+  },
+  "Newcastle": {
+   "lat": 54.9756,
+   "lon": -1.6217,
+   "stadium": "McDonald Jones Stadium",
+   "country": "GB",
+   "source": "manuel",
+   "tsdb_id": "134474"
+  },
+  "Newcastle United": {
+   "lat": 54.9756,
+   "lon": -1.6216,
+   "stadium": "St James Park",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "134777"
+  },
+  "Nice": {
+   "lat": 43.70528,
+   "lon": 7.1925,
+   "stadium": "Allianz Riviera",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133712"
+  },
+  "Nimes": {
+   "lat": 43.83665,
+   "lon": 4.35788,
+   "stadium": "Stade des Antonins",
+   "country": "FR",
+   "source": "geocoding",
+   "tsdb_id": "134715"
+  },
+  "Norwich City": {
+   "lat": 52.62222,
+   "lon": 1.30917,
+   "stadium": "Carrow Road",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133608"
+  },
+  "Nottingham Forest": {
+   "lat": 52.94,
+   "lon": -1.1328,
+   "stadium": null,
+   "country": "GB",
+   "source": "manuel",
+   "tsdb_id": null
+  },
+  "Nurnberg": {
+   "lat": 49.42611,
+   "lon": 11.12583,
+   "stadium": "Max-Morlock-Stadion",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133659"
+  },
+  "Osasuna": {
+   "lat": 42.79667,
+   "lon": -1.63694,
+   "stadium": "Estadio El Sadar",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133730"
+  },
+  "PEC Zwolle": {
+   "lat": 52.51729,
+   "lon": 6.12191,
+   "stadium": "MAC³PARK Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133936"
+  },
+  "PSV Eindhoven": {
+   "lat": 51.44167,
+   "lon": 5.46694,
+   "stadium": "Philips Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133768"
+  },
+  "Paderborn": {
+   "lat": 51.73083,
+   "lon": 8.71111,
+   "stadium": "Home Deluxe Arena",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "134551"
+  },
+  "Palermo": {
+   "lat": 38.15277,
+   "lon": 13.34228,
+   "stadium": "Stadio Renzo Barbera",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "138166"
+  },
+  "Paris FC": {
+   "lat": 48.84306,
+   "lon": 2.25278,
+   "stadium": "Stade Jean-Bouin",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "135465"
+  },
+  "Paris SG": {
+   "lat": 48.8414,
+   "lon": 2.253,
+   "stadium": "Stade du Frémoy",
+   "country": "FR",
+   "source": "manuel",
+   "tsdb_id": "153855"
+  },
+  "Parma": {
+   "lat": 44.79492,
+   "lon": 10.33844,
+   "stadium": "Stadio Ennio Tardini",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "135728"
+  },
+  "Parma Calcio 1913": {
+   "lat": 44.79492,
+   "lon": 10.33844,
+   "stadium": "Stadio Ennio Tardini",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "135728"
+  },
+  "Pendikspor": {
+   "lat": 40.8775,
+   "lon": 29.2725,
+   "stadium": "Pendik Stadyumu",
+   "country": "TR",
+   "source": "geocoding",
+   "tsdb_id": "138957"
+  },
+  "Pescara": {
+   "lat": 42.455,
+   "lon": 14.23,
+   "stadium": "Stadio Adriatico-Giovanni Cornacchia",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133685"
+  },
+  "Pisa": {
+   "lat": 43.72528,
+   "lon": 10.4,
+   "stadium": "Arena Garibaldi - Stadio Romeo Anconetani",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133859"
+  },
+  "Portimonense": {
+   "lat": 37.13583,
+   "lon": -8.53972,
+   "stadium": "Estádio Municipal de Portimão",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "136031"
+  },
+  "QPR": {
+   "lat": 51.50917,
+   "lon": -0.23222,
+   "stadium": "MATRADE Loftus Road",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133605"
+  },
+  "RB Leipzig": {
+   "lat": 51.34575,
+   "lon": 12.34828,
+   "stadium": "Red Bull Arena Leipzig",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "134695"
+  },
+  "RKC Waalwijk": {
+   "lat": 51.6825,
+   "lon": 5.07083,
+   "stadium": "Mandemakers Stadion",
+   "country": "NL",
+   "source": "geocoding",
+   "tsdb_id": "133765"
+  },
+  "RasenBallsport Leipzig": {
+   "lat": 51.34575,
+   "lon": 12.34828,
+   "stadium": "Red Bull Arena Leipzig",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "134695"
+  },
+  "Rayo Vallecano": {
+   "lat": 40.39194,
+   "lon": -3.65889,
+   "stadium": "Estadio de Vallecas",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133728"
+  },
+  "Reading": {
+   "lat": 51.42222,
+   "lon": -0.98278,
+   "stadium": "Select Car Leasing Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133633"
+  },
+  "Real Betis": {
+   "lat": 37.41724,
+   "lon": -6.00456,
+   "stadium": "Estadio de La Cartuja",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133722"
+  },
+  "Real Madrid": {
+   "lat": 40.4531,
+   "lon": -3.6883,
+   "stadium": "Estadio Santiago Bernabéu",
+   "country": "ES",
+   "source": "manuel",
+   "tsdb_id": "133738"
+  },
+  "Real Oviedo": {
+   "lat": 43.36078,
+   "lon": -5.87022,
+   "stadium": "Estadio Carlos Tartiere",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "135455"
+  },
+  "Real Sociedad": {
+   "lat": 43.30139,
+   "lon": -1.97361,
+   "stadium": "Reale Arena",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133724"
+  },
+  "Real Zaragoza": {
+   "lat": 41.65606,
+   "lon": -0.87734,
+   "stadium": "Estadio de La Romareda",
+   "country": "ES",
+   "source": "geocoding",
+   "tsdb_id": "133737"
+  },
+  "Rennes": {
+   "lat": 48.1075,
+   "lon": -1.71278,
+   "stadium": "Roazhon Park",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133719"
+  },
+  "Rio Ave": {
+   "lat": 41.36278,
+   "lon": -8.74028,
+   "stadium": "Estádio do Rio Ave FC",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "134107"
+  },
+  "Rizespor": {
+   "lat": 41.04202,
+   "lon": 40.5733,
+   "stadium": "Çaykur Didi Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133885"
+  },
+  "Roma": {
+   "lat": 41.93389,
+   "lon": 12.45472,
+   "stadium": "Stadio Olimpico",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133682"
+  },
+  "SC Farense": {
+   "lat": 37.02286,
+   "lon": -7.92844,
+   "stadium": "Estádio de São Lúis",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "138853"
+  },
+  "SC Heerenveen": {
+   "lat": 52.95861,
+   "lon": 5.93611,
+   "stadium": "Abe Lenstra Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133759"
+  },
+  "SC Heracles Almelo": {
+   "lat": 52.33861,
+   "lon": 6.64972,
+   "stadium": "Asito Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133766"
+  },
+  "SC Telstar": {
+   "lat": 52.455,
+   "lon": 4.635,
+   "stadium": "711 Stadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "138004"
+  },
+  "SPAL": {
+   "lat": 44.83804,
+   "lon": 11.62057,
+   "stadium": "",
+   "country": "IT",
+   "source": "geocoding",
+   "tsdb_id": "134665"
+  },
+  "Salernitana": {
+   "lat": 40.645,
+   "lon": 14.82389,
+   "stadium": "Stadio Arechi",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133846"
+  },
+  "Samsunspor": {
+   "lat": 41.22778,
+   "lon": 36.4575,
+   "stadium": "Samsun 19 Mayıs Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133797"
+  },
+  "Santa Clara": {
+   "lat": 37.76371,
+   "lon": -25.62259,
+   "stadium": "Estádio de São Miguel",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "136192"
+  },
+  "Sassuolo": {
+   "lat": 44.71472,
+   "lon": 10.64972,
+   "stadium": "Mapei Stadium – Città del Tricolore",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133701"
+  },
+  "Schalke 04": {
+   "lat": 51.50508,
+   "lon": 7.09654,
+   "stadium": "VELTINS-Arena",
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": "133661"
+  },
+  "Sevilla": {
+   "lat": 37.384,
+   "lon": -5.9705,
+   "stadium": "Estadio Ramón Sánchez Pizjuán",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133735"
+  },
+  "Sheffield United": {
+   "lat": 53.37028,
+   "lon": -1.47083,
+   "stadium": "Bramall Lane",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133811"
+  },
+  "Sivasspor": {
+   "lat": 39.74833,
+   "lon": 37.01611,
+   "stadium": "Yeni Sivas 4 Eylül Stadyumu",
+   "country": "TR",
+   "source": "geocoding",
+   "tsdb_id": "133806"
+  },
+  "Sociedad": {
+   "lat": 43.3014,
+   "lon": -1.9737,
+   "stadium": "Estadio de Luchán",
+   "country": "ES",
+   "source": "manuel",
+   "tsdb_id": "138278"
+  },
+  "Southampton": {
+   "lat": 50.90583,
+   "lon": -1.39111,
+   "stadium": "St. Mary's Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "134778"
+  },
+  "Sparta": {
+   "lat": 51.9225,
+   "lon": 4.47917,
+   "stadium": "",
+   "country": "NL",
+   "source": "geocoding",
+   "tsdb_id": "156697"
+  },
+  "Sparta Rotterdam": {
+   "lat": 51.91944,
+   "lon": 4.43333,
+   "stadium": "Spartastadion",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133866"
+  },
+  "Spezia": {
+   "lat": 44.10222,
+   "lon": 9.80861,
+   "stadium": "Stadio Alberto Picco",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133879"
+  },
+  "Sporting CP": {
+   "lat": 38.7612,
+   "lon": -9.1609,
+   "stadium": "Estádio José Alvalade",
+   "country": "PT",
+   "source": "manuel",
+   "tsdb_id": "135708"
+  },
+  "Sporting Gijon": {
+   "lat": 43.49806,
+   "lon": -5.68056,
+   "stadium": "Escuela de Fútbol de Mareo",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "137803"
+  },
+  "St Etienne": {
+   "lat": 45.46083,
+   "lon": 4.39028,
+   "stadium": "Stade Geoffroy-Guichard",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133717"
+  },
+  "St Pauli": {
+   "lat": 53.55458,
+   "lon": 9.96767,
+   "stadium": "Millerntor-Stadion",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133813"
+  },
+  "Stade de Reims": {
+   "lat": 49.24667,
+   "lon": 4.025,
+   "stadium": "Stade Auguste Delaune",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133934"
+  },
+  "Stoke": {
+   "lat": 52.98833,
+   "lon": -2.17556,
+   "stadium": "bet365 Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133609"
+  },
+  "Strasbourg": {
+   "lat": 48.56,
+   "lon": 7.755,
+   "stadium": "Stade de la Meinau",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133882"
+  },
+  "Stuttgart": {
+   "lat": 48.79222,
+   "lon": 9.23194,
+   "stadium": "MHP Arena",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133660"
+  },
+  "Sunderland": {
+   "lat": 54.90465,
+   "lon": -1.38222,
+   "stadium": "Stadium of Light",
+   "country": "GB",
+   "source": "geocoding",
+   "tsdb_id": "133603"
+  },
+  "Swansea": {
+   "lat": 51.6422,
+   "lon": -3.9351,
+   "stadium": "Swansea.com Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133614"
+  },
+  "Tondela": {
+   "lat": 40.51682,
+   "lon": -8.08087,
+   "stadium": "Estádio João Cardoso",
+   "country": "PT",
+   "source": "geocoding",
+   "tsdb_id": "135502"
+  },
+  "Torino": {
+   "lat": 45.04167,
+   "lon": 7.65,
+   "stadium": "Stadio Olimpico Grande Torino",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133687"
+  },
+  "Tottenham": {
+   "lat": 51.56028,
+   "lon": -0.01278,
+   "stadium": "BetWright Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "140228"
+  },
+  "Tottenham Hotspur": {
+   "lat": 51.60444,
+   "lon": -0.06639,
+   "stadium": "Tottenham Hotspur Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133616"
+  },
+  "Toulouse": {
+   "lat": 43.58306,
+   "lon": 1.43417,
+   "stadium": "Stadium de Toulouse",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133703"
+  },
+  "Trabzonspor": {
+   "lat": 40.99917,
+   "lon": 39.64583,
+   "stadium": "Papara Park",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "133796"
+  },
+  "Twente": {
+   "lat": 52.23667,
+   "lon": 6.8375,
+   "stadium": "De Grolsch Veste",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133774"
+  },
+  "UC Sampdoria": {
+   "lat": 44.41639,
+   "lon": 8.9525,
+   "stadium": "Stadio Luigi Ferraris",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133683"
+  },
+  "Udinese": {
+   "lat": 46.0816,
+   "lon": 13.2001,
+   "stadium": "Bluenergy Stadium",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "133679"
+  },
+  "Union Berlin": {
+   "lat": 52.45722,
+   "lon": 13.56806,
+   "stadium": "Stadion An der Alten Försterei",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "134690"
+  },
+  "Utrecht": {
+   "lat": 52.07833,
+   "lon": 5.14583,
+   "stadium": "Stadion Galgenwaard",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133764"
+  },
+  "Valencia": {
+   "lat": 39.47472,
+   "lon": -0.35833,
+   "stadium": "Estadio de Mestalla",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133725"
+  },
+  "Valladolid": {
+   "lat": 41.6445,
+   "lon": -4.7612,
+   "stadium": null,
+   "country": "ES",
+   "source": "manuel",
+   "tsdb_id": null
+  },
+  "Vallecano": {
+   "lat": 40.39194,
+   "lon": -3.65889,
+   "stadium": "Estadio de Vallecas",
+   "country": "ES",
+   "source": "thesportsdb",
+   "tsdb_id": "133728"
+  },
+  "Venezia": {
+   "lat": 45.42776,
+   "lon": 12.36373,
+   "stadium": "Stadio Pierluigi Penzo",
+   "country": "IT",
+   "source": "thesportsdb",
+   "tsdb_id": "134234"
+  },
+  "Verona": {
+   "lat": 45.43854,
+   "lon": 10.9938,
+   "stadium": "Sinergy Stadium",
+   "country": "IT",
+   "source": "geocoding",
+   "tsdb_id": "144909"
+  },
+  "Villarreal": {
+   "lat": 39.9441,
+   "lon": -0.1036,
+   "stadium": "Estadio de la Cerámica",
+   "country": "ES",
+   "source": "manuel",
+   "tsdb_id": "133740"
+  },
+  "Vitesse": {
+   "lat": 51.9625,
+   "lon": 5.89306,
+   "stadium": "GelreDome",
+   "country": "NL",
+   "source": "thesportsdb",
+   "tsdb_id": "133770"
+  },
+  "Vitória de Guimarães": {
+   "lat": 41.44583,
+   "lon": -8.30111,
+   "stadium": "Estádio D. Afonso Henriques",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "134115"
+  },
+  "Vizela": {
+   "lat": 41.3885,
+   "lon": -8.3076,
+   "stadium": "Estádio do FC Vizela",
+   "country": "PT",
+   "source": "thesportsdb",
+   "tsdb_id": "140097"
+  },
+  "Watford FC": {
+   "lat": 51.64972,
+   "lon": -0.40139,
+   "stadium": "Vicarage Road",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133624"
+  },
+  "Werder Bremen": {
+   "lat": 53.07582,
+   "lon": 8.80717,
+   "stadium": "Weser-Stadion",
+   "country": "DE",
+   "source": "geocoding",
+   "tsdb_id": "133662"
+  },
+  "West Brom": {
+   "lat": 52.51868,
+   "lon": -1.9945,
+   "stadium": "",
+   "country": "GB",
+   "source": "geocoding",
+   "tsdb_id": "140193"
+  },
+  "West Ham": {
+   "lat": 51.54778,
+   "lon": 0.16,
+   "stadium": "Chigwell Construction Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "140229"
+  },
+  "West Ham United": {
+   "lat": 51.5387,
+   "lon": -0.0166,
+   "stadium": "London Stadium",
+   "country": "GB",
+   "source": "manuel",
+   "tsdb_id": "133636"
+  },
+  "Wigan": {
+   "lat": 53.54778,
+   "lon": -2.65389,
+   "stadium": "The Brick Community Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133607"
+  },
+  "Willem II": {
+   "lat": 51.55551,
+   "lon": 5.0913,
+   "stadium": "Koning Willem II Stadion",
+   "country": "NL",
+   "source": "geocoding",
+   "tsdb_id": "133827"
+  },
+  "Wolfsburg": {
+   "lat": 52.43278,
+   "lon": 10.80389,
+   "stadium": "Volkswagen Arena",
+   "country": "DE",
+   "source": "thesportsdb",
+   "tsdb_id": "133655"
+  },
+  "Wolverhampton Wanderers": {
+   "lat": 52.59028,
+   "lon": -2.13028,
+   "stadium": "Molineux Stadium",
+   "country": "GB",
+   "source": "thesportsdb",
+   "tsdb_id": "133599"
+  },
+  "Wolves": {
+   "lat": 52.5903,
+   "lon": -2.1304,
+   "stadium": null,
+   "country": "GB",
+   "source": "manuel",
+   "tsdb_id": "149395"
+  },
+  "Évian Thonon Gaillard": {
+   "lat": 45.9165,
+   "lon": 6.11805,
+   "stadium": "Parc des Sports (Annecy)",
+   "country": "FR",
+   "source": "thesportsdb",
+   "tsdb_id": "133705"
+  },
+  "İstanbul Başakşehir": {
+   "lat": 41.12278,
+   "lon": 28.80861,
+   "stadium": "Başakşehir Fatih Terim Stadyumu",
+   "country": "TR",
+   "source": "thesportsdb",
+   "tsdb_id": "134589"
+  }
+ }
+}
