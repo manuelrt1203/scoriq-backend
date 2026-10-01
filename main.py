@@ -22,6 +22,8 @@ GMAIL_USER     = os.environ.get("GMAIL_USER", "manuelrt1203@gmail.com")
 GMAIL_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 
 import db_conn
+import numpy as np
+from scoriq_models import MIN_PROBA, plancher_probas
 
 DC_PARAMS_PATH     = "dixon_coles_params.json"
 CALIBRATORS_PATH   = "calibrators.pkl"
@@ -714,17 +716,15 @@ def apply_calibration(summary: dict[str, Any], calibrators: Any) -> dict[str, An
     p1 = float(calibrators["home_win"].predict([summary["proba_home_win"]])[0])
     px = float(calibrators["draw"].predict([summary["proba_draw"]])[0])
     p2 = float(calibrators["away_win"].predict([summary["proba_away_win"]])[0])
-    total = p1 + px + p2
-    if total > 0:
-        p1, px, p2 = p1 / total, px / total, p2 / total
+    p1, px, p2 = (float(v) for v in plancher_probas([p1, px, p2]))
     summary = dict(summary)
     summary["proba_home_win"] = p1
     summary["proba_draw"]     = px
     summary["proba_away_win"] = p2
     if calibrators.get("over_2_5") and summary.get("over_2_5") is not None:
-        summary["over_2_5"] = float(calibrators["over_2_5"].predict([summary["over_2_5"]])[0])
+        summary["over_2_5"] = float(np.clip(calibrators["over_2_5"].predict([summary["over_2_5"]])[0], MIN_PROBA, 1 - MIN_PROBA))
     if calibrators.get("btts") and summary.get("btts_yes") is not None:
-        summary["btts_yes"] = float(calibrators["btts"].predict([summary["btts_yes"]])[0])
+        summary["btts_yes"] = float(np.clip(calibrators["btts"].predict([summary["btts_yes"]])[0], MIN_PROBA, 1 - MIN_PROBA))
     probs = {"1": p1, "X": px, "2": p2}
     summary["confidence"]  = max(probs.values())
     summary["top_pick"]    = max(probs, key=probs.get)
