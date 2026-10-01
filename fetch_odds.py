@@ -15,7 +15,8 @@ import requests
 
 import db_conn
 
-API_KEY = os.environ.get("ODDS_API_KEY", "***REMOVED***")
+# Fournie par le secret GitHub / la variable Render ODDS_API_KEY — jamais de clé dans le code
+API_KEY = os.environ.get("ODDS_API_KEY")
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
 
 # Compétitions suivies : idLeague ScorIQ → clé Odds API
@@ -373,6 +374,10 @@ def print_value_bets(conn: db_conn.Connection) -> None:
 
 
 def main() -> None:
+    if not API_KEY:
+        # Les cotes sont facultatives : on n'interrompt pas le pipeline quotidien
+        print("⚠ ODDS_API_KEY non définie — récupération des cotes ignorée.")
+        return
     conn = db_conn.get_connection()
     ensure_table(conn)
 
