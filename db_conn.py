@@ -68,12 +68,27 @@ class _PgCursor:
 
 # ── Connection wrapper ─────────────────────────────────────────────────────────
 
+def _register_numpy_adapters() -> None:
+    """Valeurs NumPy -> types SQL. Sans ça, psycopg2 écrit np.float64(0.52) tel quel dans la requête
+    (repr de NumPy 2) et PostgreSQL répond « schema "np" does not exist » : predict_v3 plantait
+    dès qu'une probabilité sortait de NumPy (échecs quotidiens à partir du 9 octobre 2026)."""
+    try:
+        import numpy as np
+        from psycopg2.extensions import AsIs, register_adapter
+    except ImportError:
+        return
+    register_adapter(np.floating, lambda v: AsIs(repr(float(v))) if np.isfinite(v) else AsIs("'NaN'::float"))
+    register_adapter(np.integer, lambda v: AsIs(int(v)))
+    register_adapter(np.bool_, lambda v: AsIs(bool(v)))
+
+
 class Connection:
     def __init__(self):
         self.is_pg = DATABASE_URL is not None
         if self.is_pg:
             import psycopg2
             import psycopg2.extras
+            _register_numpy_adapters()
             self._conn = psycopg2.connect(DATABASE_URL)
             self._extras = psycopg2.extras
         else:
