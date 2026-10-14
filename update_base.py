@@ -10,12 +10,19 @@ BASE_URL = f"https://www.thesportsdb.com/api/v1/json/{API_KEY}"
 
 EVENTS_SEASON_URL = f"{BASE_URL}/eventsseason.php"
 EVENTS_ROUND_URL = f"{BASE_URL}/eventsround.php"
+LOOKUP_EVENT_URL = f"{BASE_URL}/lookupevent.php"
 
 REQUEST_TIMEOUT = 25
 SLEEP_BETWEEN_REQUESTS = 4
 MAX_RETRIES = 4
 
 ALLOWED_COMP_TYPES = {"LEAGUE", "DOMESTIC_CUP", "EUROPE", "INTERNATIONAL"}
+
+# Erreurs connues de TheSportsDB sur le sens d'un match (domicile/extérieur inversés).
+# Vérifié par le décompte : sans correction, l'équipe A a 18 matchs à domicile et B 16.
+HOME_AWAY_FIXES: dict[int, tuple[str, str]] = {
+    2605949: ("Paris Saint-Germain", "Rennes"),  # Ligue 1 2026-27, J23 : la source affiche Rennes - PSG deux fois
+}
 
 # Si une compétition n'a rien via eventsseason.php, on peut tenter quelques rounds
 DEFAULT_ROUNDS_BY_TYPE = {
@@ -220,10 +227,11 @@ def build_match_row(event: dict[str, Any], fallback_name: str, fallback_type: st
 
     round_value = event.get("intRound") or event.get("strRound") or event.get("round")
 
-    date_value = (
-        event.get("strTimestamp")
-        or event.get("dateEvent")
-        or event.get("strDate")
+    # TheSportsDB renvoie parfois l'epoch (1970-01-01) quand la date manque : on l'écarte.
+    date_value = next(
+        (d for d in (event.get("strTimestamp"), event.get("dateEvent"), event.get("strDate"))
+         if d and not str(d).startswith("1970")),
+        None,
     )
 
     home = event.get("strHomeTeam")
@@ -253,6 +261,8 @@ def build_match_row(event: dict[str, Any], fallback_name: str, fallback_type: st
 
     if event_id in (None, "") or not home or not away or not date_value:
         return None
+
+    home, away = HOME_AWAY_FIXES.get(int(event_id), (home, away))
 
     return (
         int(event_id),
@@ -329,14 +339,72 @@ def dedupe_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 KNOCKOUT_ROUNDS = [16, 32, 64, 128, 256]
+API_EVENTS_CAP = 50
+MAX_VANISHED_PER_ROUND = 15
 
 
-def fetch_events_for_competition(comp: dict[str, Any], season: str) -> list[dict[str, Any]]:
+def lookup_event(event_id: int) -> dict[str, Any] | None:
+    """Événement tel que TheSportsDB le connaît aujourd'hui (None s'il a été supprimé)."""
+    data = get_json_with_retry(LOOKUP_EVENT_URL, {"id": event_id})
+    if not data:
+        # get_json_with_retry renvoie {} après des erreurs réseau : ne surtout pas conclure à une suppression.
+        raise RuntimeError("pas de réponse de l'API")
+    events = data.get("events") or []
+    return events[0] if events else None
+
+
+def purge_vanished(conn: db_conn.Connection, comp: dict[str, Any], season: str, round_no: int, events: list[dict[str, Any]]) -> int:
+    """Rattrape les matchs d'une journée que TheSportsDB ne renvoie plus.
+
+    TheSportsDB remplace parfois un événement par un nouvel id (match reprogrammé) ou le
+    range d'abord dans la mauvaise compétition (« Oman FA Cup » dans la FA Cup) avant de
+    le corriger. Notre base gardait l'ancienne version : doublons et intrus. Pour chaque
+    match absent de la journée, on interroge l'événement : supprimé chez eux → supprimé
+    chez nous ; déplacé → mis à jour (il quitte la compétition).
+    """
+    # La clé gratuite tronque les réponses à 50 événements : une journée pleine peut être incomplète.
+    if not events or len(events) >= API_EVENTS_CAP:
+        return 0
+    league_id = comp["idLeague"]
+    ids = {int(e["idEvent"]) for e in events if e.get("idEvent") not in (None, "")}
+    rows = conn.execute("""
+        SELECT id, home, away FROM matches
+        WHERE idLeague = ? AND season = ? AND CAST(round AS TEXT) = ?
+          AND (source IS NULL OR source = 'thesportsdb')
+    """, (league_id, season, str(round_no))).fetchall()
+    vanished = [r for r in rows if int(r["id"]) not in ids]
+    if len(vanished) > MAX_VANISHED_PER_ROUND:
+        print(f"  ⚠ {len(vanished)} matchs absents de la journée {round_no} : réponse suspecte, rien n'est modifié")
+        return 0
+    changed = 0
+    for r in vanished:
+        try:
+            event = lookup_event(int(r["id"]))
+        except Exception as e:
+            print(f"  ⚠ vérification impossible pour l'id {r['id']} : {e}")
+            continue
+        time.sleep(SLEEP_BETWEEN_REQUESTS)
+        if event is None:
+            conn.execute("DELETE FROM matches WHERE id = ?", (r["id"],))
+            print(f"  -> supprimé (disparu de la source) : {r['home']} - {r['away']} (id {r['id']})")
+        else:
+            row = build_match_row(event, comp["name"], comp["competition_type"], comp.get("country"), season)
+            if row is None or row[1] == league_id:
+                continue  # même compétition, autre journée : la synchro normale s'en occupe
+            upsert_match(conn, row)
+            print(f"  -> déplacé vers {event.get('strLeague')} : {r['home']} - {r['away']} (id {r['id']})")
+        changed += 1
+    return changed
+
+
+def fetch_events_for_competition(comp: dict[str, Any], season: str) -> tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]]]:
     league_id = comp["idLeague"]
     comp_type = comp.get("competition_type", "")
     rounds = int(comp.get("rounds") or DEFAULT_ROUNDS_BY_TYPE.get(comp_type, 20))
 
     collected: list[dict[str, Any]] = []
+    # Journées renvoyées en entier par eventsround.php (pour purger les matchs disparus).
+    by_round: dict[int, list[dict[str, Any]]] = {}
 
     # 1) Saison complète
     season_events = fetch_events_for_league_season(league_id, season)
@@ -352,19 +420,21 @@ def fetch_events_for_competition(comp: dict[str, Any], season: str) -> list[dict
                 break
             continue
         empty_streak = 0
+        by_round[round_no] = round_events
         collected.extend(round_events)
 
-    # 3) Pour les compétitions européennes : rounds knockout fixes
-    #    (play-offs R32, R16, QF, SF, Finale utilisent des rounds non séquentiels)
-    if comp_type == "EUROPE":
+    # 3) Coupes d'Europe et coupes nationales : rounds à élimination numérotés par le
+    #    nombre d'équipes (32, 64, 128…), non séquentiels.
+    if comp_type in ("EUROPE", "DOMESTIC_CUP"):
         for round_no in KNOCKOUT_ROUNDS:
             if round_no <= rounds:
                 continue  # déjà couvert par la boucle séquentielle
             round_events = fetch_events_for_round(league_id, season, round_no)
             if round_events:
+                by_round[round_no] = round_events
                 collected.extend(round_events)
 
-    return dedupe_events(collected)
+    return dedupe_events(collected), by_round
 
 
 def main() -> None:
@@ -400,7 +470,7 @@ def main() -> None:
 
             for season in seasons:
                 try:
-                    events = fetch_events_for_competition(comp, season)
+                    events, by_round = fetch_events_for_competition(comp, season)
                 except Exception as e:
                     print(f"  -> erreur API sur {season} : {e}")
                     time.sleep(SLEEP_BETWEEN_REQUESTS)
@@ -437,6 +507,9 @@ def main() -> None:
                         conn.rollback()
                         skipped_here += 1
                         total_skipped += 1
+
+                for round_no, round_events in by_round.items():
+                    purge_vanished(conn, comp, season, round_no, round_events)
 
                 conn.commit()
                 time.sleep(SLEEP_BETWEEN_REQUESTS)
@@ -504,6 +577,7 @@ def refresh_rounds(conn: db_conn.Connection, comp: dict, rounds_to_fetch: list[i
             if row:
                 upsert_match(conn, row)
                 updated += 1
+        purge_vanished(conn, comp, season, round_no, events)
         conn.commit()
         time.sleep(SLEEP_BETWEEN_REQUESTS)
     return updated
