@@ -3,13 +3,19 @@
 Récupère les cotes bookmakers depuis The Odds API et les stocke en base.
 Calcule automatiquement les value bets par rapport aux prédictions ScorIQ.
 
-Usage : python fetch_odds.py
-Consommation : ~11 requêtes API par exécution (500/mois en gratuit)
+Usage : python fetch_odds.py   (ODDS_FORCE=1 pour refaire une récupération déjà faite aujourd'hui)
+
+Quota The Odds API (offre gratuite : 500 crédits/mois) : 1 crédit par marché et par région.
+L'ancienne version demandait h2h + totals + btts pour 12 compétitions à chaque lancement du
+workflow (2 par jour) : ~72 crédits/jour, quota épuisé en une semaine, puis HTTP 401.
+Désormais : une seule récupération par jour, marché h2h seul (ODDS_MARKETS pour en ajouter),
+et seulement pour les compétitions qui ont un match dans les 48 h (liste des matchs gratuite).
+→ quelques crédits par jour, ~150 à 300 par mois.
 """
 
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -18,6 +24,9 @@ import db_conn
 # Fournie par le secret GitHub / la variable Render ODDS_API_KEY — jamais de clé dans le code
 API_KEY = os.environ.get("ODDS_API_KEY")
 BASE_URL = "https://api.the-odds-api.com/v4/sports"
+
+MARKETS = os.environ.get("ODDS_MARKETS", "h2h")  # ex. "h2h,totals" : chaque marché coûte 1 crédit de plus
+HORIZON_HOURS = 48
 
 # Compétitions suivies : idLeague ScorIQ → clé Odds API
 COMPETITIONS = {
@@ -154,59 +163,60 @@ def ensure_table(conn: db_conn.Connection) -> None:
     conn.commit()
 
 
-def fetch_sport_odds(sport_key: str) -> list[dict]:
-    """Fetch h2h + totals en une requête, puis tente btts séparément."""
-    try:
-        r = requests.get(
-            f"{BASE_URL}/{sport_key}/odds/",
-            params={
-                "apiKey":     API_KEY,
-                "regions":    "eu",
-                "markets":    "h2h,totals",
-                "oddsFormat": "decimal",
-                "dateFormat": "iso",
-            },
-            timeout=15,
-        )
-        remaining = r.headers.get("x-requests-remaining", "?")
-        if r.status_code != 200:
-            print(f"  {sport_key}: HTTP {r.status_code}")
-            return []
-        matches = r.json()
-        print(f"  {sport_key}: {len(matches)} matchs (restantes: {remaining})", end="")
+class QuotaExhausted(Exception):
+    pass
 
-        # Tenter btts (non dispo pour toutes les compétitions)
-        r2 = requests.get(
-            f"{BASE_URL}/{sport_key}/odds/",
-            params={
-                "apiKey":     API_KEY,
-                "regions":    "eu",
-                "markets":    "btts",
-                "oddsFormat": "decimal",
-                "dateFormat": "iso",
-            },
-            timeout=15,
-        )
-        if r2.status_code == 200:
-            btts_by_id = {m["id"]: m for m in r2.json()}
-            for m in matches:
-                if m["id"] in btts_by_id:
-                    btts_books = {b["key"]: b for b in btts_by_id[m["id"]].get("bookmakers", [])}
-                    for book in m.get("bookmakers", []):
-                        if book["key"] in btts_books:
-                            book["markets"] += [
-                                mkt for mkt in btts_books[book["key"]].get("markets", [])
-                                if mkt["key"] == "btts"
-                            ]
-            remaining2 = r2.headers.get("x-requests-remaining", "?")
-            print(f" + btts (restantes: {remaining2})")
-        else:
-            print()
 
-        return matches
-    except requests.RequestException as e:
-        print(f"  {sport_key}: erreur {e}")
+def _iso(dt: datetime) -> str:
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def has_upcoming_events(sport_key: str, now: datetime) -> bool:
+    """Un match dans les HORIZON_HOURS prochaines heures ? (endpoint /events : ne consomme pas de crédit)"""
+    r = requests.get(
+        f"{BASE_URL}/{sport_key}/events",
+        params={"apiKey": API_KEY, "dateFormat": "iso",
+                "commenceTimeFrom": _iso(now), "commenceTimeTo": _iso(now + timedelta(hours=HORIZON_HOURS))},
+        timeout=15,
+    )
+    if r.status_code in (401, 429):
+        raise QuotaExhausted(f"HTTP {r.status_code} : {r.text[:200]}")
+    if r.status_code == 404:
+        return False  # compétition hors saison / inconnue
+    r.raise_for_status()
+    return bool(r.json())
+
+
+def fetch_sport_odds(sport_key: str, now: datetime) -> list[dict]:
+    """Cotes des matchs des HORIZON_HOURS prochaines heures, marchés MARKETS."""
+    r = requests.get(
+        f"{BASE_URL}/{sport_key}/odds/",
+        params={
+            "apiKey":     API_KEY,
+            "regions":    "eu",
+            "markets":    MARKETS,
+            "oddsFormat": "decimal",
+            "dateFormat": "iso",
+            "commenceTimeFrom": _iso(now),
+            "commenceTimeTo":   _iso(now + timedelta(hours=HORIZON_HOURS)),
+        },
+        timeout=15,
+    )
+    if r.status_code in (401, 429):
+        raise QuotaExhausted(f"HTTP {r.status_code} : {r.text[:200]}")
+    if r.status_code != 200:
+        print(f"  {sport_key}: HTTP {r.status_code}")
         return []
+    matches = r.json()
+    print(f"  {sport_key}: {len(matches)} matchs (crédits utilisés : {r.headers.get('x-requests-last', '?')}, "
+          f"restants : {r.headers.get('x-requests-remaining', '?')})")
+    return matches
+
+
+def fetched_today(conn) -> bool:
+    row = conn.execute("SELECT MAX(fetched_at) AS last FROM odds").fetchone()
+    last = row["last"] if row else None
+    return bool(last) and str(last)[:10] == datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 def best_odds(match: dict) -> dict | None:
@@ -382,14 +392,30 @@ def main() -> None:
     ensure_table(conn)
 
     print("=== RÉCUPÉRATION DES COTES ===\n")
+    if fetched_today(conn) and os.environ.get("ODDS_FORCE") != "1":
+        # Le workflow tourne deux fois par jour : la deuxième passe ne dépense pas de crédits
+        print("Cotes déjà récupérées aujourd'hui — rien à faire (ODDS_FORCE=1 pour forcer).")
+        print_value_bets(conn)
+        conn.close()
+        return
     total = 0
+    now = datetime.now(timezone.utc)
 
-    for id_league, sport_key in COMPETITIONS.items():
-        matches = fetch_sport_odds(sport_key)
-        for m in matches:
-            total += upsert_odds(conn, m, id_league)
-        conn.commit()
-        time.sleep(0.5)
+    try:
+        for id_league, sport_key in COMPETITIONS.items():
+            if not has_upcoming_events(sport_key, now):
+                print(f"  {sport_key}: aucun match dans les {HORIZON_HOURS} h, ignoré (0 crédit)")
+                continue
+            matches = fetch_sport_odds(sport_key, now)
+            for m in matches:
+                total += upsert_odds(conn, m, id_league)
+            conn.commit()
+            time.sleep(0.5)
+    except QuotaExhausted as e:
+        print(f"\n⚠ The Odds API refuse la requête ({e}).")
+        print("  Quota mensuel épuisé ou clé invalide : vérifier sur https://the-odds-api.com/account/")
+    except requests.RequestException as e:
+        print(f"\n⚠ Erreur réseau The Odds API : {e}")
 
     print(f"\n{total} entrées de cotes stockées.")
     print_value_bets(conn)
