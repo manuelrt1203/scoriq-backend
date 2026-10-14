@@ -1421,10 +1421,23 @@ def standings(competition: str, season: str | None = None):
         y = today.year
         season = f"{y}-{y + 1}" if today.month >= 7 else f"{y - 1}-{y}"
 
+    # Coupes d'Europe (format 2024+) : seule la phase de ligue a un classement. Les tours
+    # préliminaires (juillet-août) réutilisent les numéros de journée 1, 2, 3… et les
+    # barrages / phases finales commencent en février : on ne garde que septembre → janvier.
+    is_europe = "uefa" in competition.lower() or any(
+        k in competition.lower() for k in ("champions league", "europa league", "conference league")
+    )
+    date_filter = ""
+    params: tuple = (f"%{competition}%", season)
+    if is_europe:
+        start_year = int(season[:4])
+        date_filter = "AND date >= ? AND date < ?"
+        params += (f"{start_year}-09-01", f"{start_year + 1}-02-01")
+
     conn = get_conn()
     try:
         rows = conn.execute(
-            """
+            f"""
             SELECT home, away, home_score, away_score
             FROM matches
             WHERE home_score IS NOT NULL
@@ -1432,8 +1445,9 @@ def standings(competition: str, season: str | None = None):
               AND status IN ('FINISHED', 'MATCH FINISHED')
               AND competition_name LIKE ?
               AND season = ?
+              {date_filter}
             """,
-            (f"%{competition}%", season),
+            params,
         ).fetchall()
 
         if not rows:
@@ -1441,18 +1455,21 @@ def standings(competition: str, season: str | None = None):
 
         teams: dict[str, dict] = {}
         for r in rows:
-            for team, gf, ga in [
-                (r["home"], r["home_score"], r["away_score"]),
-                (r["away"], r["away_score"], r["home_score"]),
+            for team, gf, ga, away in [
+                (r["home"], r["home_score"], r["away_score"], False),
+                (r["away"], r["away_score"], r["home_score"], True),
             ]:
                 if team not in teams:
-                    teams[team] = {"team": team, "played": 0, "won": 0, "drawn": 0, "lost": 0, "gf": 0, "ga": 0}
+                    teams[team] = {"team": team, "played": 0, "won": 0, "drawn": 0, "lost": 0, "gf": 0, "ga": 0, "away_gf": 0, "away_won": 0}
                 t = teams[team]
                 t["played"] += 1
                 t["gf"] += gf
                 t["ga"] += ga
+                if away:
+                    t["away_gf"] += gf
                 if gf > ga:
                     t["won"] += 1
+                    t["away_won"] += away
                 elif gf == ga:
                     t["drawn"] += 1
                 else:
@@ -1463,7 +1480,10 @@ def standings(competition: str, season: str | None = None):
             t["points"] = t["won"] * 3 + t["drawn"]
             t["gd"] = t["gf"] - t["ga"]
 
-        result.sort(key=lambda x: (-x["points"], -x["gd"], -x["gf"]))
+        # Départage UEFA de la phase de ligue : différence, buts, buts à l'extérieur, victoires, victoires à l'extérieur.
+        result.sort(key=lambda x: (-x["points"], -x["gd"], -x["gf"], -x["away_gf"], -x["won"], -x["away_won"]))
+        for t in result:
+            del t["away_gf"], t["away_won"]
         for i, t in enumerate(result, 1):
             t["rank"] = i
 
