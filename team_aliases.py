@@ -18,6 +18,7 @@ Table `team_aliases` (alias -> canonical_name). Consommée par :
   reproduire au prochain import TheSportsDB — cf. récidive Porto du 02/09/2026)
 """
 import sys
+from datetime import date, timedelta
 
 import db_conn
 
@@ -102,23 +103,17 @@ def scan_candidates(conn: db_conn.Connection) -> list[tuple[str, str, int, int]]
     "FC Porto"), les deux ont joué dans les 2 dernières saisons, et ne sont pas
     déjà résolus par un alias existant."""
     known = load_alias_map(conn)
+    # matches.date est du texte ISO : limite calculée ici (valable pour SQLite et PostgreSQL).
+    since = (date.today() - timedelta(days=730)).isoformat()
     rows = conn.execute("""
         SELECT team, COUNT(*) AS n FROM (
-            SELECT home AS team FROM matches WHERE date >= CURRENT_DATE - INTERVAL '730 days'
+            SELECT home AS team FROM matches WHERE date >= ?
             UNION ALL
-            SELECT away FROM matches WHERE date >= CURRENT_DATE - INTERVAL '730 days'
+            SELECT away FROM matches WHERE date >= ?
         ) t
         GROUP BY team
         ORDER BY team
-    """ if conn.is_pg else """
-        SELECT team, COUNT(*) AS n FROM (
-            SELECT home AS team FROM matches WHERE date >= date('now', '-730 days')
-            UNION ALL
-            SELECT away FROM matches WHERE date >= date('now', '-730 days')
-        ) t
-        GROUP BY team
-        ORDER BY team
-    """).fetchall()
+    """, (since, since)).fetchall()
 
     teams = [(r["team"], r["n"]) for r in rows if r["team"]]
     candidates = []

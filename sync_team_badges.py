@@ -10,6 +10,7 @@ que les lignes concernées, ne devine jamais un badge sans nom clairement lié
 """
 import re
 import time
+from datetime import date, timedelta
 import unicodedata
 
 import requests
@@ -126,13 +127,16 @@ def merge_team_name_variants(conn: db_conn.Connection) -> None:
 
 
 def find_teams_missing_badges(conn: db_conn.Connection) -> list[dict]:
+    # matches.date est du texte ISO : la limite est calculée ici, la comparaison de chaînes vaut pour
+    # SQLite comme pour PostgreSQL (CURRENT_DATE - INTERVAL y comparait du texte à un timestamp).
+    since = (date.today() - timedelta(days=90)).isoformat()
     rows = conn.execute("""
         SELECT DISTINCT team, competition_name, competition_type FROM (
             SELECT home AS team, competition_name, competition_type FROM matches
-            WHERE date >= CURRENT_DATE - INTERVAL '90 days'
+            WHERE date >= ?
             UNION
             SELECT away AS team, competition_name, competition_type FROM matches
-            WHERE date >= CURRENT_DATE - INTERVAL '90 days'
+            WHERE date >= ?
         ) recent
         WHERE NOT EXISTS (
             SELECT 1 FROM teams t
@@ -140,21 +144,7 @@ def find_teams_missing_badges(conn: db_conn.Connection) -> list[dict]:
               AND t.badge_url IS NOT NULL AND TRIM(t.badge_url) <> ''
         )
         ORDER BY team
-    """ if conn.is_pg else """
-        SELECT DISTINCT team, competition_name, competition_type FROM (
-            SELECT home AS team, competition_name, competition_type FROM matches
-            WHERE date >= date('now', '-90 days')
-            UNION
-            SELECT away AS team, competition_name, competition_type FROM matches
-            WHERE date >= date('now', '-90 days')
-        ) recent
-        WHERE NOT EXISTS (
-            SELECT 1 FROM teams t
-            WHERE LOWER(TRIM(t.strTeam)) = LOWER(TRIM(recent.team))
-              AND t.badge_url IS NOT NULL AND TRIM(t.badge_url) <> ''
-        )
-        ORDER BY team
-    """)
+    """, (since, since))
     return [dict(r) for r in rows.fetchall()]
 
 
