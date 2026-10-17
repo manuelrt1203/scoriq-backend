@@ -10,7 +10,7 @@ Ce script rejoue predict_v3.py --backdate sur chaque jour manquant identifié
 pour cette date). Pas de fuite de données : predict_v3.py en mode backdate
 construit l'historique de chaque équipe strictement AVANT la date ciblée.
 
-Usage : python backfill_missed_predictions.py
+Usage : python backfill_missed_predictions.py [2026-10-09:2026-10-14 | 2026-10-09 2026-10-10 …]
 """
 import sys
 import time
@@ -44,10 +44,27 @@ MISSING_DATES = [
 ]
 
 
+def parse_dates(args):
+    from datetime import date, timedelta
+    out = []
+    for a in " ".join(args).replace(",", " ").split():
+        if ":" in a:
+            start, end = (date.fromisoformat(x) for x in a.split(":", 1))
+            while start <= end:
+                out.append(start.isoformat())
+                start += timedelta(days=1)
+        else:
+            out.append(date.fromisoformat(a).isoformat())
+    return out
+
+
 def main():
-    print(f"{len(MISSING_DATES)} jours à rattraper", flush=True)
-    for i, d in enumerate(MISSING_DATES, 1):
-        print(f"\n=== [{i}/{len(MISSING_DATES)}] {d} ===", flush=True)
+    # Dates passées en argument (« 2026-10-09 2026-10-10 » ou plage « 2026-10-09:2026-10-14 ») ;
+    # sans argument, l'ancienne liste du rattrapage de l'été.
+    dates = parse_dates(sys.argv[1:]) or MISSING_DATES
+    print(f"{len(dates)} jours à rattraper", flush=True)
+    for i, d in enumerate(dates, 1):
+        print(f"\n=== [{i}/{len(dates)}] {d} ===", flush=True)
         sys.argv = ["predict_v3.py", d]
         try:
             predict_v3.main()

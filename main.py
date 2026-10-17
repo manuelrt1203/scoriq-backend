@@ -1540,6 +1540,10 @@ def get_match_result(home: str, away: str, season: str = "2025-2026"):
 @app.get("/results/evaluated")
 def results_evaluated(days: int = 30):
     """Retourne les matchs évalués récents pour l'auto-évaluation des paris."""
+    from datetime import date as _date, timedelta as _timedelta
+
+    # Date limite calculée en Python : date('now', …) est propre à SQLite et plantait sous PostgreSQL.
+    since = (_date.today() - _timedelta(days=days)).isoformat()
     conn = get_conn()
     try:
         rows = conn.execute(
@@ -1552,10 +1556,10 @@ def results_evaluated(days: int = 30):
             FROM predictions_history
             WHERE evaluation_status = 'OK'
               AND real_home_goals IS NOT NULL
-              AND match_date >= date('now', ? || ' days')
+              AND match_date >= ?
             ORDER BY match_date DESC
             """,
-            (f"-{days}",),
+            (since,),
         ).fetchall()
         return [dict(r) for r in rows]
     finally:

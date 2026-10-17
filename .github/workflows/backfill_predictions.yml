@@ -1,7 +1,12 @@
 name: Backfill Missed Predictions
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      dates:
+        description: 'Jours à rattraper (ex. 2026-10-09:2026-10-14) ; vide = ancienne liste de l’été'
+        required: false
+        default: ''
 
 jobs:
   backfill:
@@ -16,6 +21,6 @@ jobs:
           python-version: '3.13'
       - run: pip install -r requirements.txt
       - name: Rejouer predict_v3 sur les jours manqués
-        run: python backfill_missed_predictions.py
+        run: python backfill_missed_predictions.py ${{ github.event.inputs.dates }}
       - name: Évaluer les prédictions rattrapées
         run: python evaluate_predict_v1.py
