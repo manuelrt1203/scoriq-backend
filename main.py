@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import os
 import smtplib
@@ -16,8 +17,9 @@ import groq
 import joblib
 import pandas as pd
 import requests as http_requests
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 GMAIL_USER     = os.environ.get("GMAIL_USER", "manuelrt1203@gmail.com")
@@ -48,6 +50,20 @@ MIN_CONFIDENCE    = 0.45
 STRONG_CONFIDENCE = 0.55
 
 app = FastAPI(title="Pronostics API", version="1.0.0")
+logger = logging.getLogger("scoriq")
+
+MAX_BODY_BYTES = 1_000_000
+
+
+# Déclaré avant CORS pour que CORS reste la couche extérieure (la réponse 413 garde ses en-têtes).
+# Refuse un gros corps avant que FastAPI ne l'analyse (ne couvre que les requêtes avec Content-Length).
+@app.middleware("http")
+async def limit_body_size(request: Request, call_next):
+    length = request.headers.get("content-length")
+    if length and length.isdigit() and int(length) > MAX_BODY_BYTES:
+        return JSONResponse(status_code=413, content={"detail": "Requête trop volumineuse."})
+    return await call_next(request)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -1176,23 +1192,40 @@ def matches_today():
 
 
 PREDICT_TODAY_TTL = 300  # s — les données ne changent qu'au cron (2x/jour) ; 5 min suffisent
-_predict_today_cache: dict[str, Any] = {"day": None, "at": 0.0, "value": None}
+_predict_today_cache: dict[str, Any] = {"entry": None}  # (jour, instant, réponse), remplacé d'un bloc
 _predict_today_lock = threading.Lock()
+
+
+def _predict_today_entry(day: str):
+    entry = _predict_today_cache["entry"]
+    return entry if entry is not None and entry[0] == day else None
 
 
 @app.get("/predict/today")
 @app.post("/predict/today")
 def predict_today():
-    """Endpoint public : le calcul complet est mis en cache quelques minutes. Le verrou
-    évite que des visiteurs simultanés (ou un robot) lancent chacun le calcul."""
+    """Endpoint public : le calcul complet est mis en cache quelques minutes. Un seul visiteur
+    recalcule à la fois ; pendant ce temps les autres reçoivent la dernière valeur du jour
+    (même périmée) au lieu d'attendre, pour ne pas bloquer les threads du serveur.
+    ATTENTION : la valeur renvoyée est partagée, les appelants ne doivent pas la modifier."""
     day = datetime.now().strftime("%Y-%m-%d")
-    with _predict_today_lock:
-        c = _predict_today_cache
-        if c["day"] == day and c["value"] is not None and time.monotonic() - c["at"] < PREDICT_TODAY_TTL:
-            return c["value"]
+    entry = _predict_today_entry(day)
+    if entry is not None and time.monotonic() - entry[1] < PREDICT_TODAY_TTL:
+        return entry[2]
+    if not _predict_today_lock.acquire(blocking=False):
+        if entry is not None:
+            return entry[2]
+        _predict_today_lock.acquire()  # démarrage à froid : rien à servir, on attend le calcul en cours
+    try:
+        day = datetime.now().strftime("%Y-%m-%d")
+        entry = _predict_today_entry(day)
+        if entry is not None and time.monotonic() - entry[1] < PREDICT_TODAY_TTL:
+            return entry[2]  # calculé par le visiteur dont on attendait le résultat
         value = _compute_predict_today()
-        c.update(day=day, at=time.monotonic(), value=value)
+        _predict_today_cache["entry"] = (day, time.monotonic(), value)
         return value
+    finally:
+        _predict_today_lock.release()
 
 
 def _compute_predict_today():
@@ -1802,9 +1835,8 @@ def _run_server_tool(name: str, tool_input: dict) -> Any:
         rows = top_picks(limit=limit)
         return [_trim_prediction(r) for r in rows]
     if name == "get_predictions_today":
-        result = predict_today()
-        result["matches"] = [_trim_prediction(m) for m in result["matches"]]
-        return result
+        result = predict_today()  # objet partagé avec le cache : on construit une copie, on ne le modifie pas
+        return {**result, "matches": [_trim_prediction(m) for m in result["matches"]]}
     if name == "get_head_to_head":
         limit = min(int(tool_input.get("limit") or 10), 15)
         return head_to_head(home=tool_input["home"], away=tool_input["away"], limit=limit)
@@ -1909,8 +1941,8 @@ def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default
     # présent), l'usage est plafonné par utilisateur et la conversation bornée en taille,
     # pour protéger le quota de l'API Groq.
     user_id = security.authenticate_bearer(authorization)
+    security.check_agent_payload(req.messages)  # avant le quota : une requête refusée ne le consomme pas
     security.check_agent_quota(user_id)
-    security.check_agent_payload(req.messages)
 
     client = get_groq_client()
     messages = list(req.messages)
@@ -1927,7 +1959,8 @@ def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default
             # Sans ce try/except, une erreur Groq (clé invalide, quota, panne...) remonte
             # comme une exception non gérée -> 500 sans en-têtes CORS -> le navigateur
             # l'affiche comme "Failed to fetch" au lieu du vrai message d'erreur.
-            raise HTTPException(status_code=502, detail=f"L'assistant IA n'a pas pu répondre : {e}")
+            logger.warning("Erreur Groq : %s", e)  # le détail reste dans les journaux, pas chez le client
+            raise HTTPException(status_code=502, detail="L'assistant IA n'a pas pu répondre, réessaie dans un instant.")
 
         assistant_message = _groq_response_to_wire_message(response)
         messages.append(assistant_message)

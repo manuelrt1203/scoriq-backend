@@ -4,6 +4,7 @@ Pas de dépendance en plus : `requests` est déjà utilisé par le reste du back
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -22,11 +23,13 @@ SUPABASE_PUBLISHABLE_KEY = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "sb_publis
 
 TOKEN_CACHE_TTL = 60          # un jeton déjà vérifié (ou refusé) n'est pas revérifié pendant 60 s
 TOKEN_CACHE_MAX = 2000
-VALIDATIONS_PER_MINUTE = 120  # appels à Supabase pour des jetons jamais vus, tous visiteurs confondus
+VALIDATIONS_PER_MINUTE = 300  # appels à Supabase pour des jetons jamais vus, tous visiteurs confondus
 AGENT_REQUESTS = 30           # requêtes à l'assistant par utilisateur
 AGENT_WINDOW = 600            # ... sur 10 minutes
-AGENT_MAX_MESSAGES = 40
-AGENT_MAX_CHARS = 50_000
+AGENT_GLOBAL_REQUESTS = 200   # plafond tous utilisateurs confondus (comptes créés en série)
+AGENT_MAX_MESSAGES = 60
+AGENT_MAX_CHARS = 150_000     # historique complet, résultats d'outils renvoyés par le client compris
+AGENT_ROLES = {"user", "assistant"}  # jamais « system » ni « tool » : ils viennent du serveur
 
 
 class SlidingWindowLimiter:
@@ -59,8 +62,29 @@ class SlidingWindowLimiter:
 
 _validation_budget = SlidingWindowLimiter(VALIDATIONS_PER_MINUTE, 60)
 _agent_limiter = SlidingWindowLimiter(AGENT_REQUESTS, AGENT_WINDOW)
+_agent_global_limiter = SlidingWindowLimiter(AGENT_GLOBAL_REQUESTS, AGENT_WINDOW)
 _token_cache: dict[str, tuple[float, str | None]] = {}
 _token_lock = threading.Lock()
+
+
+def _looks_like_live_jwt(token: str, now: float | None = None) -> bool:
+    """Filtre local, sans réseau : trois segments, charge utile JSON avec `sub` et `exp` non dépassé.
+    Écarte les chaînes aléatoires sans dépenser le budget d'appels à Supabase (la vraie
+    vérification de la signature reste faite par Supabase)."""
+    parts = token.split(".")
+    if len(parts) != 3 or not all(parts):
+        return False
+    try:
+        payload = parts[1] + "=" * (-len(parts[1]) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+    except (ValueError, TypeError):
+        return False
+    if not isinstance(claims, dict) or not isinstance(claims.get("sub"), str):
+        return False
+    exp = claims.get("exp")
+    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
+        return False
+    return exp > (time.time() if now is None else now)
 
 
 def _fetch_user_id(token: str) -> str | None:
@@ -70,10 +94,14 @@ def _fetch_user_id(token: str) -> str | None:
         headers={"Authorization": f"Bearer {token}", "apikey": SUPABASE_PUBLISHABLE_KEY},
         timeout=5,
     )
-    if r.status_code in (401, 403):
+    # Toute réponse 4xx (sauf 429) est un refus définitif de ce jeton ; 5xx et 429 = service en difficulté.
+    if 400 <= r.status_code < 500 and r.status_code != 429:
         return None
     r.raise_for_status()
-    uid = r.json().get("id")
+    body = r.json()
+    if not isinstance(body, dict) or body.get("is_anonymous") is True:
+        return None  # les connexions anonymes permettraient de contourner le quota par compte
+    uid = body.get("id")
     return uid if isinstance(uid, str) and uid else None
 
 
@@ -82,8 +110,8 @@ def authenticate_bearer(authorization: str | None) -> str:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Connexion requise pour utiliser l'assistant.")
     token = authorization[7:].strip()
-    if not token or len(token) > 4096:
-        raise HTTPException(status_code=401, detail="Connexion requise pour utiliser l'assistant.")
+    if not token or len(token) > 4096 or not _looks_like_live_jwt(token):
+        raise HTTPException(status_code=401, detail="Session invalide ou expirée, reconnecte-toi.")
 
     digest = hashlib.sha256(token.encode()).hexdigest()  # le jeton lui-même n'est jamais gardé
     now = time.monotonic()
@@ -115,13 +143,20 @@ def authenticate_bearer(authorization: str | None) -> str:
 
 
 def check_agent_quota(user_id: str) -> None:
+    if not _agent_global_limiter.allow("global"):
+        raise HTTPException(status_code=429, detail="L'assistant est très sollicité, réessaie dans quelques minutes.")
     if not _agent_limiter.allow(user_id):
         raise HTTPException(status_code=429, detail="Tu as beaucoup sollicité l'assistant, réessaie dans quelques minutes.")
 
 
 def check_agent_payload(messages: list[dict]) -> None:
-    """Borne la taille de la conversation envoyée au modèle (chaque message est facturé en jetons)."""
+    """Borne la conversation envoyée au modèle (chaque message est facturé en jetons) et refuse
+    les rôles que seul le serveur peut écrire, pour qu'un client ne puisse pas injecter un
+    message « system »."""
     if len(messages) > AGENT_MAX_MESSAGES:
         raise HTTPException(status_code=413, detail="Conversation trop longue, recommence une nouvelle discussion.")
-    if len(json.dumps(messages, default=str)) > AGENT_MAX_CHARS:
+    for m in messages:
+        if not isinstance(m, dict) or m.get("role") not in AGENT_ROLES or not isinstance(m.get("content"), (str, list)):
+            raise HTTPException(status_code=400, detail="Message invalide.")
+    if len(json.dumps(messages, default=str, ensure_ascii=False)) > AGENT_MAX_CHARS:
         raise HTTPException(status_code=413, detail="Conversation trop volumineuse, recommence une nouvelle discussion.")

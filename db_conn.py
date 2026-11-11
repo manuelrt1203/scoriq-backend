@@ -89,7 +89,8 @@ class Connection:
             import psycopg2
             import psycopg2.extras
             _register_numpy_adapters()
-            self._conn = psycopg2.connect(DATABASE_URL)
+            # Délai de connexion : une base injoignable ne doit pas figer indéfiniment un thread du serveur.
+            self._conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
             self._extras = psycopg2.extras
         else:
             self._conn = sqlite3.connect(SQLITE_PATH)
