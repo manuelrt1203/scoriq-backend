@@ -4,6 +4,8 @@ import math
 import os
 import smtplib
 import sqlite3
+import threading
+import time
 from collections import defaultdict
 from datetime import datetime
 from email.mime.text import MIMEText
@@ -22,6 +24,7 @@ GMAIL_USER     = os.environ.get("GMAIL_USER", "manuelrt1203@gmail.com")
 GMAIL_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 
 import db_conn
+import security
 import numpy as np
 from scoriq_models import MIN_PROBA, plancher_probas
 
@@ -1172,9 +1175,27 @@ def matches_today():
         conn.close()
 
 
+PREDICT_TODAY_TTL = 300  # s — les données ne changent qu'au cron (2x/jour) ; 5 min suffisent
+_predict_today_cache: dict[str, Any] = {"day": None, "at": 0.0, "value": None}
+_predict_today_lock = threading.Lock()
+
+
 @app.get("/predict/today")
 @app.post("/predict/today")
 def predict_today():
+    """Endpoint public : le calcul complet est mis en cache quelques minutes. Le verrou
+    évite que des visiteurs simultanés (ou un robot) lancent chacun le calcul."""
+    day = datetime.now().strftime("%Y-%m-%d")
+    with _predict_today_lock:
+        c = _predict_today_cache
+        if c["day"] == day and c["value"] is not None and time.monotonic() - c["at"] < PREDICT_TODAY_TTL:
+            return c["value"]
+        value = _compute_predict_today()
+        c.update(day=day, at=time.monotonic(), value=value)
+        return value
+
+
+def _compute_predict_today():
     ai = get_ai()
     dc        = ai["dc"]
     calibrators = ai["calibrators"]
@@ -1884,10 +1905,12 @@ class AgentChatResponse(BaseModel):
 
 @app.post("/agent/chat", response_model=AgentChatResponse)
 def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default=None)):
-    # Garde-fou minimal : il faut être connecté (token Supabase présent) pour
-    # limiter l'usage de l'API Groq aux utilisateurs du site.
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Connexion requise pour utiliser l'assistant.")
+    # Réservé aux comptes : le jeton est vérifié auprès de Supabase (et plus seulement
+    # présent), l'usage est plafonné par utilisateur et la conversation bornée en taille,
+    # pour protéger le quota de l'API Groq.
+    user_id = security.authenticate_bearer(authorization)
+    security.check_agent_quota(user_id)
+    security.check_agent_payload(req.messages)
 
     client = get_groq_client()
     messages = list(req.messages)
