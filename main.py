@@ -1216,8 +1216,15 @@ def stats_by_competition():
         conn.close()
 
 
+MAX_TOP_PICKS = 50
+MAX_HISTORY_PAGE = 1000
+
+
 @app.get("/predictions/history")
 def predictions_history(limit: int = 100, offset: int = 0, only_evaluated: bool = True):
+    # Route publique : une page est bornée (chaque ligne porte deux sous-requêtes de badges).
+    limit = max(1, min(int(limit), MAX_HISTORY_PAGE))
+    offset = max(0, int(offset))
     conn = get_conn()
     try:
         where = "WHERE ph.evaluation_status = 'OK'" if only_evaluated else ""
@@ -1404,6 +1411,7 @@ def top_picks(limit: int = 5):
     sans ce filtre, dès qu'une journée n'avait aucune prédiction, l'onglet reprenait celles de la veille (déjà
     jouées, pas encore évaluées) comme si elles étaient d'actualité."""
     today = datetime.now().strftime("%Y-%m-%d")  # même référence que get_today_matches
+    limit = max(1, min(int(limit), MAX_TOP_PICKS))  # route publique : pas de limit géante ni négative
     conn = get_conn()
     try:
         # On garde uniquement la prédiction la plus récente par match (évite les doublons)

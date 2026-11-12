@@ -144,6 +144,29 @@ class TopPicksTests(unittest.TestCase):
         self.assertEqual(len(out), 3)
         self.assertEqual([r["home_team"] for r in out], ["H8", "H7", "H6"])  # l'« INSUFFICIENT_HISTORY » est exclu
 
+    def test_limit_is_bounded_on_the_public_route(self):
+        self.add(*[pred(i, "2026-11-12", f"H{i}", f"A{i}", 0.5 + i / 1000) for i in range(1, 80)])
+        self.assertEqual(len(self.picks(limit=10_000_000)), main.MAX_TOP_PICKS)
+        self.assertEqual(len(self.picks(limit=-5)), 1)
+        self.assertEqual(len(self.picks(limit=0)), 1)
+
+    def test_history_page_is_bounded(self):
+        db = self.db
+        db.execute("CREATE TABLE IF NOT EXISTS predictions_history_x (id INTEGER)")
+        captured = {}
+
+        class Conn(SharedConn):
+            def execute(self, sql, params=()):
+                captured["params"] = params
+                return self.db.execute("SELECT 1 WHERE 0")
+
+        with mock.patch.object(main, "get_conn", return_value=Conn(db)):
+            main.predictions_history(limit=10**9, offset=-7, only_evaluated=True)
+        self.assertEqual(captured["params"], (main.MAX_HISTORY_PAGE, 0))
+        with mock.patch.object(main, "get_conn", return_value=Conn(db)):
+            main.predictions_history(limit=-3, offset=5, only_evaluated=True)
+        self.assertEqual(captured["params"], (1, 5))
+
     def test_only_the_latest_prediction_per_match_is_kept(self):
         self.add(pred(1, "2026-11-12", "A", "B", 0.60), pred(2, "2026-11-12", "A", "B", 0.75))
         out = self.picks()

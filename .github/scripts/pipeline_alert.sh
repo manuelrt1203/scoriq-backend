@@ -45,6 +45,13 @@ if [ -n "$FAILED" ]; then
   exit 0
 fi
 
+# Un run annulé ou interrompu n'a rien validé : on ne ferme pas l'alerte sur cette base.
+CANCELLED="$(printf '%s' "$STEPS_JSON" | jq -r 'to_entries[] | select(.value.outcome == "cancelled") | .key' | paste -sd, -)"
+if [ -n "$CANCELLED" ]; then
+  echo "Étape(s) annulée(s) (${CANCELLED}) : l'état de l'alerte est laissé tel quel."
+  exit 0
+fi
+
 if [ -n "$EXISTING" ]; then
   gh issue comment "$EXISTING" --body "**${WHEN}** — rétabli : toutes les étapes ont réussi.${RUN_URL:+$'\n\n'Run : ${RUN_URL}}"
   gh issue close "$EXISTING"
