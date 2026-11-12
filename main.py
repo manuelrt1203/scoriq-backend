@@ -1220,7 +1220,7 @@ def matches_today():
 PREDICT_TODAY_TTL = 300  # s — les données ne changent qu'au cron (2x/jour) ; 5 min suffisent
 _predict_today_cache: dict[str, Any] = {"entry": None}  # (jour, instant, réponse), remplacé d'un bloc
 _predict_today_lock = threading.Lock()
-PREDICT_TODAY_WAIT = 15         # s — attente maximale d'un visiteur derrière un premier calcul
+PREDICT_TODAY_WAIT = 8          # s — attente maximale d'un visiteur derrière un premier calcul
 PREDICT_TODAY_RETRY_DELAY = 10  # s — pause avant de retenter un calcul qui vient d'échouer
 _predict_today_failure: dict[str, Any] = {"at": None}
 
@@ -1697,12 +1697,17 @@ AGENT_MAX_TOOL_ROUNDS = 6
 _groq_client: groq.Groq | None = None
 
 
+AGENT_TOOL_ERROR = "Cet outil a rencontré une erreur, réessaie avec d'autres paramètres ou une autre question."
+
+
 def get_groq_client() -> groq.Groq:
     global _groq_client
     if not GROQ_API_KEY:
         raise HTTPException(status_code=503, detail="Agent IA non configuré (GROQ_API_KEY manquante).")
     if _groq_client is None:
-        _groq_client = groq.Groq(api_key=GROQ_API_KEY)
+        # Délais explicites : par défaut 60 s et 2 reprises par appel, ce qui, sur 6 tours, peut
+        # occuper longtemps un thread du serveur quand Groq est lent.
+        _groq_client = groq.Groq(api_key=GROQ_API_KEY, timeout=25.0, max_retries=1)
     return _groq_client
 
 
@@ -2024,7 +2029,8 @@ def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default
                     try:
                         result = _run_server_tool(b["name"], b["input"])
                     except Exception as e:
-                        result = {"error": str(e)}
+                        logger.warning("Outil %s en échec : %s", b["name"], e)  # détail (SQL, hôte...) : journaux seulement
+                        result = {"error": AGENT_TOOL_ERROR}
                     pending.append(AgentPendingToolCall(id=b["id"], name=b["name"], input=b["input"], result=result))
             return AgentChatResponse(messages=messages, pending_tool_calls=pending, done=False)
 
@@ -2034,9 +2040,10 @@ def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default
                 result = _run_server_tool(b["name"], b["input"])
                 tool_results.append({"type": "tool_result", "tool_use_id": b["id"], "content": json.dumps(result, default=str)})
             except Exception as e:
+                logger.warning("Outil %s en échec : %s", b["name"], e)
                 tool_results.append({
                     "type": "tool_result", "tool_use_id": b["id"],
-                    "content": json.dumps({"error": str(e)}), "is_error": True,
+                    "content": json.dumps({"error": AGENT_TOOL_ERROR}), "is_error": True,
                 })
         messages.append({"role": "user", "content": tool_results})
 

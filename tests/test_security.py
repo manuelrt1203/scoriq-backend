@@ -110,11 +110,29 @@ class AuthenticateTests(unittest.TestCase):
         # Clé du backend erronée ou tournée : ne pas répondre « session expirée » à tout le monde.
         tok = make_jwt()
         for code in (401, 403):
-            with mock.patch.object(security.requests, "get",
-                                   return_value=FakeResponse(code, text='{"message":"Invalid API key"}')) as get:
-                self.assertEqual(self.status(f"Bearer {tok}"), 503, code)
-                self.assertEqual(self.status(f"Bearer {tok}"), 503, code)
-                self.assertEqual(get.call_count, 2, code)  # jamais mis en cache
+            for body in ({"message": "Invalid API key"}, {"message": "No API key found in request", "hint": "x"}):
+                with mock.patch.object(security.requests, "get", return_value=FakeResponse(code, body)) as get:
+                    self.assertEqual(self.status(f"Bearer {tok}"), 503, (code, body))
+                    self.assertEqual(self.status(f"Bearer {tok}"), 503, (code, body))
+                    self.assertEqual(get.call_count, 2, (code, body))  # jamais mis en cache
+
+    def test_forged_token_cannot_fake_the_api_key_alarm(self):
+        # L'API d'authentification peut recopier l'en-tête du jeton dans son message : « api key » y figure,
+        # mais la réponse a la forme d'une erreur d'authentification (error_code / msg), pas celle de la passerelle.
+        tok = make_jwt()
+        for body in ({"error_code": "bad_jwt", "msg": "signing method api key is invalid"},
+                     {"message": "invalid api key alg", "error_code": "bad_jwt"}):
+            security._token_cache.clear()
+            with mock.patch.object(security.requests, "get", return_value=FakeResponse(403, body)):
+                self.assertEqual(self.status(f"Bearer {tok}"), 401, body)
+
+    def test_deeply_nested_or_oversized_payload_is_a_401_not_a_500(self):
+        deep = base64.urlsafe_b64encode(b"[" * 1500 + b"]" * 1500).decode().rstrip("=")
+        huge = base64.urlsafe_b64encode(json.dumps({"sub": "u", "exp": 9999999999, "x": "y" * 3000}).encode()).decode()
+        for payload in (deep, huge):
+            with mock.patch.object(security.requests, "get") as get:
+                self.assertEqual(self.status(f"Bearer aaa.{payload}.sig"), 401)
+                get.assert_not_called()
 
     def test_server_errors_and_other_4xx_fail_closed_and_are_not_cached(self):
         tok = make_jwt()
@@ -184,6 +202,32 @@ class QuotaAndPayloadTests(unittest.TestCase):
                 security.check_agent_quota("attaquant")
         security.check_agent_quota("autre-1")
         security.check_agent_quota("autre-2")  # le plafond global n'a servi que 3 fois
+
+    def test_global_saturation_does_not_burn_personal_quota(self):
+        security._agent_limiter = security.SlidingWindowLimiter(2, 600)
+        security._agent_global_limiter = security.SlidingWindowLimiter(1, 600)
+        security.check_agent_quota("autre")  # sature le plafond global
+        for _ in range(10):
+            with self.assertRaises(HTTPException):
+                security.check_agent_quota("a")  # refusé par le plafond global
+        security._agent_global_limiter = security.SlidingWindowLimiter(100, 600)
+        security.check_agent_quota("a")
+        security.check_agent_quota("a")  # son quota de 2 est intact
+
+    def test_purge_is_throttled(self):
+        now = [0.0]
+        lim = security.SlidingWindowLimiter(1, 100, clock=lambda: now[0])
+        with mock.patch.object(lim, "_purge", wraps=lim._purge) as purge:
+            for i in range(10_050):
+                lim.allow(f"k{i}")
+            self.assertEqual(purge.call_count, 1)  # pas un balayage de 10 000 clés par appel
+            now[0] = 11  # fenêtre/10 écoulée
+            lim.allow("nouvelle")
+            self.assertEqual(purge.call_count, 2)
+
+    def test_unhashable_role_is_a_400_not_a_500(self):
+        for role in (["x"], {}, {"a": 1}, [], 1.5):
+            self.assertEqual(self.code([{"role": role, "content": "a"}]), 400, repr(role))
 
     def test_global_cap_applies_across_users(self):
         security._agent_global_limiter = security.SlidingWindowLimiter(2, 600)

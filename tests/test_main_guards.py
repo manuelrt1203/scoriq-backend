@@ -7,6 +7,7 @@ import asyncio
 import copy
 import importlib
 import importlib.util
+import json
 import os
 import sys
 import threading
@@ -252,6 +253,27 @@ class AgentChatGuardTests(unittest.TestCase):
              mock.patch.object(main, "get_groq_client", side_effect=Reached):
             with self.assertRaises(Reached):
                 self.call(f"Bearer {self.token}")
+
+    def test_server_tool_error_detail_is_not_sent_to_the_client(self):
+        replies = iter([
+            {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "get_standings", "input": {}}]},
+            {"role": "assistant", "content": [{"type": "text", "text": "ok"}]},
+        ])
+        with mock.patch.object(security, "_fetch_user_id", return_value="u-1"), \
+             mock.patch.object(main, "get_groq_client", return_value=mock.MagicMock()), \
+             mock.patch.object(main, "_wire_messages_to_groq_messages", return_value=[]), \
+             mock.patch.object(main, "_groq_tools", return_value=[]), \
+             mock.patch.object(main, "_groq_response_to_wire_message", side_effect=lambda r: next(replies)), \
+             mock.patch.object(main, "_run_server_tool",
+                               side_effect=RuntimeError("password=hunter2 host=db.internal")):
+            out = self.call(f"Bearer {self.token}")
+        dumped = json.dumps(out.messages)
+        self.assertNotIn("hunter2", dumped)
+        self.assertNotIn("db.internal", dumped)
+        tool_result = next(b for m in out.messages if isinstance(m["content"], list)
+                           for b in m["content"] if b.get("type") == "tool_result")
+        self.assertEqual(json.loads(tool_result["content"]), {"error": main.AGENT_TOOL_ERROR})
+        self.assertTrue(tool_result["is_error"])
 
     def test_system_message_injection_is_refused_before_groq(self):
         with mock.patch.object(security, "_fetch_user_id", return_value="u-1"), \
