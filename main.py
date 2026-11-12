@@ -1400,6 +1400,10 @@ def _compute_predict_today():
 
 @app.get("/top-picks")
 def top_picks(limit: int = 5):
+    """Pronostics les plus confiants des matchs d'AUJOURD'HUI et à venir. Les matchs passés n'y ont plus leur place :
+    sans ce filtre, dès qu'une journée n'avait aucune prédiction, l'onglet reprenait celles de la veille (déjà
+    jouées, pas encore évaluées) comme si elles étaient d'actualité."""
+    today = datetime.now().strftime("%Y-%m-%d")  # même référence que get_today_matches
     conn = get_conn()
     try:
         # On garde uniquement la prédiction la plus récente par match (évite les doublons)
@@ -1431,6 +1435,7 @@ def top_picks(limit: int = 5):
                 ) AS away_badge
             FROM predictions_history ph
             WHERE ph.status_prediction IN ('OK', 'PREDICTED')
+              AND ph.match_date >= ?
               AND ph.id = (
                   SELECT MAX(id) FROM predictions_history
                   WHERE match_date = ph.match_date
@@ -1438,10 +1443,10 @@ def top_picks(limit: int = 5):
                     AND away_team  = ph.away_team
                     AND status_prediction IN ('OK', 'PREDICTED')
               )
-            ORDER BY ph.match_date DESC, ph.confidence DESC
+            ORDER BY ph.confidence DESC, ph.match_date ASC
             LIMIT ?
             """,
-            (limit,),
+            (today, limit),
         ).fetchall()
         return [dict(r) for r in rows if r["confidence"] is not None]
     finally:

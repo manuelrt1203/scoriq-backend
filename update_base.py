@@ -123,14 +123,38 @@ def get_club_seasons() -> list[str]:
     ]
 
 
-def get_international_seasons() -> list[str]:
-    now = datetime.now()
-    # Années simples pour les compétitions internationales
+def get_international_seasons(now: datetime | None = None) -> list[str]:
+    now = now or datetime.now()
+    # TheSportsDB publie les compétitions internationales sous DEUX formes de saison selon l'épreuve :
+    #  - l'année simple (« 2026 ») : qualifications, Coupe du monde, CAN...
+    #  - la saison à cheval sur deux années (« 2026-2027 ») : UEFA Nations League.
+    # Ne tester que les années simples faisait disparaître toute la Nations League 2026-27 (0 événement
+    # renvoyé) : aucun match de septembre à novembre n'était en base, donc aucun pronostic.
     return [
         str(now.year - 1),
         str(now.year),
         str(now.year + 1),
+        current_football_season(now),
     ]
+
+
+def latest_season_for_league(conn: db_conn.Connection, league_id: int) -> str | None:
+    """Saison (telle que publiée par la source) du match le plus récent connu de cette compétition."""
+    row = conn.execute(
+        "SELECT season FROM matches WHERE idLeague = ? AND season IS NOT NULL ORDER BY date DESC LIMIT 1",
+        (league_id,),
+    ).fetchone()
+    return row["season"] if row and row["season"] else None
+
+
+def season_for_refresh(conn: db_conn.Connection, comp: dict, now: datetime | None = None) -> str:
+    """Saison à interroger pour rafraîchir les journées d'une compétition."""
+    now = now or datetime.now()
+    if comp["competition_type"] == "INTERNATIONAL":
+        # La saison réellement enregistrée (« 2026 » ou « 2026-2027 ») : l'année civile seule ne
+        # retrouverait jamais les journées de la Nations League.
+        return latest_season_for_league(conn, comp["idLeague"]) or str(now.year)
+    return current_football_season(now)
 
 
 def get_seasons_for_comp(comp_type: str) -> list[str]:
@@ -591,10 +615,7 @@ def refresh_pass(conn: db_conn.Connection, competitions: list[dict]) -> None:
     """
     print("\n=== PASSAGE DE RAFRAÎCHISSEMENT ===")
     for comp in competitions:
-        if comp["competition_type"] == "INTERNATIONAL":
-            season = str(datetime.now().year)
-        else:
-            season = current_football_season()
+        season = season_for_refresh(conn, comp)
 
         league_id = comp["idLeague"]
         rounds_to_fetch = []
