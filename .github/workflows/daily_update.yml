@@ -11,6 +11,11 @@ on:
         type: boolean
         default: false
 
+# Supervision : la plupart des étapes de « update » sont en `continue-on-error: true` pour ne pas bloquer
+# la suite ; leur échec ne ferait donc jamais échouer le job. Chaque étape a un `id`, et l'étape finale
+# « Signaler » (.github/scripts/pipeline_alert.sh) lit leur `outcome` réel et ouvre une issue GitHub
+# « [pipeline] ... en échec » (fermée automatiquement au prochain run réussi).
+
 jobs:
   update:
     name: Update database
@@ -18,6 +23,7 @@ jobs:
     if: github.event.schedule != '30 5 * * *' && github.event.inputs.skip_update != 'true'
     permissions:
       contents: write
+      issues: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -29,21 +35,27 @@ jobs:
           python-version: '3.13'
       - run: pip install -r requirements.txt
       - name: Update database (LEAGUE + DOMESTIC_CUP + EUROPE + INTERNATIONAL)
+        id: update_db
         continue-on-error: true
         run: python update_base.py
       - name: Clean up corrupted CL round=400 rows
+        id: cleanup_cl
         continue-on-error: true
         run: python cleanup_cl_round400.py
       - name: Normaliser les noms d'équipes divergents et compléter les badges manquants
+        id: sync_badges
         continue-on-error: true
         run: python sync_team_badges.py
       - name: Complete knockout stages (World Cup + Champions League)
+        id: knockout
         continue-on-error: true
         run: python fetch_footballdata_org.py
       - name: Retrain Dixon-Coles (pondération temporelle — intègre la forme récente)
+        id: retrain
         continue-on-error: true
         run: python train_dixon_coles.py
       - name: Commit et push les paramètres ré-entraînés
+        id: push_params
         continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
@@ -51,12 +63,23 @@ jobs:
           git add dixon_coles_params.json
           git diff --staged --quiet || git commit -m "chore: ré-entraînement quotidien Dixon-Coles"
           git push
+      - name: Signaler (ou clore) l'alerte
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_NAME: "Mise à jour de la base"
+          STEPS_JSON: ${{ toJSON(steps) }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash .github/scripts/pipeline_alert.sh
 
   evaluate_and_predict:
     name: Evaluate & Predict
     runs-on: ubuntu-latest
     needs: [update]
     if: always()
+    permissions:
+      contents: read
+      issues: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -68,12 +91,24 @@ jobs:
           python-version: '3.13'
       - run: pip install -r requirements.txt
       - name: Fetch shots data (proxy xG)
+        id: fetch_shots
         continue-on-error: true
         run: python fetch_shots.py
       - name: Fetch bookmaker odds
+        id: fetch_odds
         continue-on-error: true
         run: python fetch_odds.py
       - name: Evaluate predictions
+        id: evaluate
         run: python evaluate_predict_v1.py
       - name: Generate today's predictions
+        id: predict
         run: python predict_v3.py
+      - name: Signaler (ou clore) l'alerte
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_NAME: "Évaluation et pronostics"
+          STEPS_JSON: ${{ toJSON(steps) }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash .github/scripts/pipeline_alert.sh

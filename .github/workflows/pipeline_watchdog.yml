@@ -1,0 +1,33 @@
+name: Pipeline watchdog
+
+# Surveillance indépendante du pipeline quotidien : l'API répond-elle et les données sont-elles fraîches ?
+# (Les échecs d'étapes du pipeline lui-même sont signalés par daily_update.yml.) Un problème ouvre une issue
+# « [pipeline] ... en échec » ; un retour à la normale la ferme.
+
+on:
+  schedule:
+    - cron: "15 7 * * *"   # 07:15 UTC = 09:15 heure française, après le run de sécurité de 05:30 UTC
+  workflow_dispatch:
+
+jobs:
+  freshness:
+    name: Surveillance API et données
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier l'API et la fraîcheur des données
+        id: check
+        continue-on-error: true
+        run: bash .github/scripts/check_freshness.sh
+      - name: Signaler (ou clore) l'alerte
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_NAME: "Surveillance de l'API et des données"
+          STEPS_JSON: ${{ toJSON(steps) }}
+          DETAILS: ${{ steps.check.outputs.reason }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash .github/scripts/pipeline_alert.sh
