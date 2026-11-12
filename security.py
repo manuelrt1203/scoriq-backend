@@ -7,6 +7,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import os
 import threading
 import time
@@ -14,6 +15,8 @@ from collections import deque
 
 import requests
 from fastapi import HTTPException
+
+logger = logging.getLogger("scoriq")
 
 # La clé « publishable » est publique par conception (elle est aussi dans le bundle
 # du site) : elle identifie le projet, elle ne donne aucun droit. Les droits viennent
@@ -24,11 +27,11 @@ SUPABASE_PUBLISHABLE_KEY = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "sb_publis
 TOKEN_CACHE_TTL = 60          # un jeton déjà vérifié (ou refusé) n'est pas revérifié pendant 60 s
 TOKEN_CACHE_MAX = 2000
 VALIDATIONS_PER_MINUTE = 300  # appels à Supabase pour des jetons jamais vus, tous visiteurs confondus
-AGENT_REQUESTS = 30           # requêtes à l'assistant par utilisateur
+AGENT_REQUESTS = 60           # requêtes à l'assistant par utilisateur (une question avec outil client en coûte 2)
 AGENT_WINDOW = 600            # ... sur 10 minutes
 AGENT_GLOBAL_REQUESTS = 200   # plafond tous utilisateurs confondus (comptes créés en série)
 AGENT_MAX_MESSAGES = 60
-AGENT_MAX_CHARS = 150_000     # historique complet, résultats d'outils renvoyés par le client compris
+AGENT_MAX_CHARS = 250_000     # historique complet, résultats d'outils renvoyés par le client compris
 AGENT_ROLES = {"user", "assistant"}  # jamais « system » ni « tool » : ils viennent du serveur
 
 
@@ -94,10 +97,18 @@ def _fetch_user_id(token: str) -> str | None:
         headers={"Authorization": f"Bearer {token}", "apikey": SUPABASE_PUBLISHABLE_KEY},
         timeout=5,
     )
-    # Toute réponse 4xx (sauf 429) est un refus définitif de ce jeton ; 5xx et 429 = service en difficulté.
-    if 400 <= r.status_code < 500 and r.status_code != 429:
+    detail = (getattr(r, "text", "") or "")[:200]
+    if r.status_code in (401, 403):
+        # 401/403 = jeton refusé... sauf si c'est NOTRE clé API qui est refusée (mauvaise configuration) :
+        # on le dit dans les journaux et on répond 503, au lieu de déconnecter tout le monde en silence.
+        if "api key" in detail.lower() or "apikey" in detail.lower():
+            logger.error("Supabase refuse la clé publishable du backend : %s", detail)
+            raise requests.RequestException("clé API refusée")
         return None
-    r.raise_for_status()
+    if r.status_code != 200:
+        # Autre 4xx (mauvaise URL, requête mal formée), 429, 5xx : ce n'est pas un verdict sur le jeton.
+        logger.error("Réponse inattendue de Supabase (%s) : %s", r.status_code, detail)
+        raise requests.RequestException(f"statut {r.status_code}")
     body = r.json()
     if not isinstance(body, dict) or body.get("is_anonymous") is True:
         return None  # les connexions anonymes permettraient de contourner le quota par compte
@@ -134,19 +145,37 @@ def authenticate_bearer(authorization: str | None) -> str:
         if len(_token_cache) >= TOKEN_CACHE_MAX:
             for k in [k for k, (exp, _) in _token_cache.items() if exp <= now]:
                 del _token_cache[k]
-            if len(_token_cache) >= TOKEN_CACHE_MAX:
-                _token_cache.clear()
-        _token_cache[digest] = (now + TOKEN_CACHE_TTL, uid)
+        # Si le cache est encore plein d'entrées valides on ne mémorise pas celle-ci : on ne vide
+        # jamais tout (cela ferait revérifier d'un coup tous les utilisateurs légitimes).
+        if len(_token_cache) < TOKEN_CACHE_MAX:
+            _token_cache[digest] = (now + TOKEN_CACHE_TTL, uid)
     if uid is None:
         raise HTTPException(status_code=401, detail="Session invalide ou expirée, reconnecte-toi.")
     return uid
 
 
 def check_agent_quota(user_id: str) -> None:
-    if not _agent_global_limiter.allow("global"):
-        raise HTTPException(status_code=429, detail="L'assistant est très sollicité, réessaie dans quelques minutes.")
+    # Ordre important : le plafond par utilisateur d'abord, pour qu'un compte déjà refusé ne
+    # consomme pas le plafond global et ne puisse pas bloquer l'assistant pour tout le monde.
     if not _agent_limiter.allow(user_id):
         raise HTTPException(status_code=429, detail="Tu as beaucoup sollicité l'assistant, réessaie dans quelques minutes.")
+    if not _agent_global_limiter.allow("global"):
+        raise HTTPException(status_code=429, detail="L'assistant est très sollicité, réessaie dans quelques minutes.")
+
+
+def _valid_block(b) -> bool:
+    """Forme minimale des blocs lus par main._wire_messages_to_groq_messages : sans elle, un bloc
+    incomplet lèverait KeyError/AttributeError (500 sans en-têtes CORS). Types inconnus : ignorés plus loin."""
+    if not isinstance(b, dict):
+        return False
+    t = b.get("type")
+    if t == "text":
+        return isinstance(b.get("text"), str)
+    if t == "tool_use":
+        return isinstance(b.get("id"), str) and isinstance(b.get("name"), str)
+    if t == "tool_result":
+        return isinstance(b.get("tool_use_id"), str) and isinstance(b.get("content"), (str, type(None)))
+    return True
 
 
 def check_agent_payload(messages: list[dict]) -> None:
@@ -157,6 +186,8 @@ def check_agent_payload(messages: list[dict]) -> None:
         raise HTTPException(status_code=413, detail="Conversation trop longue, recommence une nouvelle discussion.")
     for m in messages:
         if not isinstance(m, dict) or m.get("role") not in AGENT_ROLES or not isinstance(m.get("content"), (str, list)):
+            raise HTTPException(status_code=400, detail="Message invalide.")
+        if isinstance(m["content"], list) and not all(_valid_block(b) for b in m["content"]):
             raise HTTPException(status_code=400, detail="Message invalide.")
     if len(json.dumps(messages, default=str, ensure_ascii=False)) > AGENT_MAX_CHARS:
         raise HTTPException(status_code=413, detail="Conversation trop volumineuse, recommence une nouvelle discussion.")

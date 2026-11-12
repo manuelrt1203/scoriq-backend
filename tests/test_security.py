@@ -24,9 +24,10 @@ def make_jwt(sub="u-1", exp_in=3600, **extra) -> str:
 
 
 class FakeResponse:
-    def __init__(self, status=200, body=None):
+    def __init__(self, status=200, body=None, text=""):
         self.status_code = status
         self._body = {} if body is None else body
+        self.text = text
 
     def json(self):
         return self._body
@@ -95,18 +96,29 @@ class AuthenticateTests(unittest.TestCase):
             _, kwargs = get.call_args
             self.assertEqual(kwargs["headers"]["Authorization"], f"Bearer {tok}")
 
-    def test_any_4xx_is_a_cached_refusal(self):
+    def test_401_and_403_are_cached_refusals(self):
         tok = make_jwt()
-        for code in (400, 401, 403, 422):
+        for code in (401, 403):
             security._token_cache.clear()
-            with mock.patch.object(security.requests, "get", return_value=FakeResponse(code)) as get:
+            with mock.patch.object(security.requests, "get",
+                                   return_value=FakeResponse(code, text='{"msg":"invalid JWT"}')) as get:
                 self.assertEqual(self.status(f"Bearer {tok}"), 401, code)
                 self.assertEqual(self.status(f"Bearer {tok}"), 401, code)
                 self.assertEqual(get.call_count, 1, code)
 
-    def test_server_errors_and_429_fail_closed_and_are_not_cached(self):
+    def test_rejected_api_key_is_a_server_problem_not_a_logout(self):
+        # Clé du backend erronée ou tournée : ne pas répondre « session expirée » à tout le monde.
         tok = make_jwt()
-        for code in (429, 500, 502, 503):
+        for code in (401, 403):
+            with mock.patch.object(security.requests, "get",
+                                   return_value=FakeResponse(code, text='{"message":"Invalid API key"}')) as get:
+                self.assertEqual(self.status(f"Bearer {tok}"), 503, code)
+                self.assertEqual(self.status(f"Bearer {tok}"), 503, code)
+                self.assertEqual(get.call_count, 2, code)  # jamais mis en cache
+
+    def test_server_errors_and_other_4xx_fail_closed_and_are_not_cached(self):
+        tok = make_jwt()
+        for code in (400, 404, 422, 429, 500, 502, 503):
             with mock.patch.object(security.requests, "get", return_value=FakeResponse(code)) as get:
                 self.assertEqual(self.status(f"Bearer {tok}"), 503, code)
                 self.assertEqual(self.status(f"Bearer {tok}"), 503, code)
@@ -132,6 +144,15 @@ class AuthenticateTests(unittest.TestCase):
                                return_value=FakeResponse(200, {"id": "u-anon", "is_anonymous": True})):
             self.assertEqual(self.status(f"Bearer {make_jwt()}"), 401)
 
+    def test_full_cache_is_never_wiped(self):
+        with mock.patch.object(security, "TOKEN_CACHE_MAX", 2), \
+             mock.patch.object(security.requests, "get", return_value=FakeResponse(200, {"id": "u"})):
+            for i in range(2):
+                security.authenticate_bearer(f"Bearer {make_jwt(sub=f'u{i}')}")
+            before = dict(security._token_cache)
+            security.authenticate_bearer(f"Bearer {make_jwt(sub='autre')}")  # cache plein : non mémorisé
+            self.assertEqual(security._token_cache, before)
+
     def test_validation_budget_caps_calls_to_supabase(self):
         security._validation_budget = security.SlidingWindowLimiter(3, 60)
         with mock.patch.object(security.requests, "get", return_value=FakeResponse(401)) as get:
@@ -152,6 +173,17 @@ class QuotaAndPayloadTests(unittest.TestCase):
             security.check_agent_quota("a")
         self.assertEqual(ctx.exception.status_code, 429)
         security.check_agent_quota("b")
+
+    def test_refused_user_does_not_burn_the_global_cap(self):
+        # Un seul compte qui insiste ne doit pas bloquer l'assistant pour les autres.
+        security._agent_limiter = security.SlidingWindowLimiter(1, 600)
+        security._agent_global_limiter = security.SlidingWindowLimiter(3, 600)
+        security.check_agent_quota("attaquant")
+        for _ in range(50):
+            with self.assertRaises(HTTPException):
+                security.check_agent_quota("attaquant")
+        security.check_agent_quota("autre-1")
+        security.check_agent_quota("autre-2")  # le plafond global n'a servi que 3 fois
 
     def test_global_cap_applies_across_users(self):
         security._agent_global_limiter = security.SlidingWindowLimiter(2, 600)
@@ -183,6 +215,25 @@ class QuotaAndPayloadTests(unittest.TestCase):
         block = {"type": "tool_result", "tool_use_id": "t", "content": "y" * 20_000}
         msgs = [{"role": "user", "content": "q"}, {"role": "user", "content": [block]}] * 3
         self.assertEqual(self.code(msgs), 200)
+
+    def test_malformed_blocks_are_a_400_not_a_500_later(self):
+        bad_contents = (
+            ["x"], [1], [None], [[]],
+            [{"type": "text"}], [{"type": "text", "text": 5}],
+            [{"type": "tool_use", "name": "n"}], [{"type": "tool_use", "id": "i"}],
+            [{"type": "tool_result"}], [{"type": "tool_result", "tool_use_id": 3}],
+            [{"type": "tool_result", "tool_use_id": "t", "content": {"a": 1}}],
+        )
+        for content in bad_contents:
+            self.assertEqual(self.code([{"role": "user", "content": content}]), 400, repr(content))
+        good = [
+            {"type": "text", "text": "ok"},
+            {"type": "tool_use", "id": "i", "name": "n", "input": {}},
+            {"type": "tool_result", "tool_use_id": "t", "content": "[]"},
+            {"type": "tool_result", "tool_use_id": "t", "content": None},
+            {"type": "inconnu"},  # ignoré par la conversion, pas un crash
+        ]
+        self.assertEqual(self.code([{"role": "assistant", "content": good}]), 200)
 
     def test_only_user_and_assistant_roles_are_accepted(self):
         for role in ("system", "tool", "developer", None, 3):

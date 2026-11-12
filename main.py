@@ -55,16 +55,42 @@ logger = logging.getLogger("scoriq")
 MAX_BODY_BYTES = 1_000_000
 
 
-# Déclaré avant CORS pour que CORS reste la couche extérieure (la réponse 413 garde ses en-têtes).
-# Refuse un gros corps avant que FastAPI ne l'analyse (ne couvre que les requêtes avec Content-Length).
-@app.middleware("http")
-async def limit_body_size(request: Request, call_next):
-    length = request.headers.get("content-length")
-    if length and length.isdigit() and int(length) > MAX_BODY_BYTES:
-        return JSONResponse(status_code=413, content={"detail": "Requête trop volumineuse."})
-    return await call_next(request)
+class BodyLimitMiddleware:
+    """Refuse les corps de requête trop gros : tout de suite si Content-Length le déclare, sinon
+    (requêtes « chunked ») en comptant les octets reçus. Ajouté avant CORS pour que CORS reste la
+    couche extérieure et que la réponse 413 garde ses en-têtes."""
+
+    def __init__(self, app, max_bytes: int = MAX_BODY_BYTES):
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        for name, value in scope.get("headers", []):
+            if name == b"content-length":
+                try:
+                    declared = int(value)
+                except ValueError:
+                    declared = 0
+                if declared > self.max_bytes:
+                    response = JSONResponse(status_code=413, content={"detail": "Requête trop volumineuse."})
+                    return await response(scope, receive, send)
+        received = 0
+
+        async def limited_receive():
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > self.max_bytes:
+                    raise HTTPException(status_code=413, detail="Requête trop volumineuse.")
+            return message
+
+        await self.app(scope, limited_receive, send)
 
 
+app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -1194,6 +1220,9 @@ def matches_today():
 PREDICT_TODAY_TTL = 300  # s — les données ne changent qu'au cron (2x/jour) ; 5 min suffisent
 _predict_today_cache: dict[str, Any] = {"entry": None}  # (jour, instant, réponse), remplacé d'un bloc
 _predict_today_lock = threading.Lock()
+PREDICT_TODAY_WAIT = 15         # s — attente maximale d'un visiteur derrière un premier calcul
+PREDICT_TODAY_RETRY_DELAY = 10  # s — pause avant de retenter un calcul qui vient d'échouer
+_predict_today_failure: dict[str, Any] = {"at": None}
 
 
 def _predict_today_entry(day: str):
@@ -1215,15 +1244,30 @@ def predict_today():
     if not _predict_today_lock.acquire(blocking=False):
         if entry is not None:
             return entry[2]
-        _predict_today_lock.acquire()  # démarrage à froid : rien à servir, on attend le calcul en cours
+        # Démarrage à froid ou nouveau jour : rien à servir, on attend le calcul en cours, mais pas indéfiniment.
+        if not _predict_today_lock.acquire(timeout=PREDICT_TODAY_WAIT):
+            raise HTTPException(status_code=503, detail="Pronostics en cours de calcul, réessaie dans un instant.")
     try:
         day = datetime.now().strftime("%Y-%m-%d")
         entry = _predict_today_entry(day)
         if entry is not None and time.monotonic() - entry[1] < PREDICT_TODAY_TTL:
             return entry[2]  # calculé par le visiteur dont on attendait le résultat
-        value = _compute_predict_today()
-        _predict_today_cache["entry"] = (day, time.monotonic(), value)
-        return value
+        failed_at = _predict_today_failure["at"]
+        if failed_at is None or time.monotonic() - failed_at >= PREDICT_TODAY_RETRY_DELAY:
+            try:
+                value = _compute_predict_today()
+            except Exception:
+                logger.exception("Calcul de /predict/today en échec")
+                _predict_today_failure["at"] = time.monotonic()
+            else:
+                _predict_today_failure["at"] = None
+                _predict_today_cache["entry"] = (day, time.monotonic(), value)
+                return value
+        # Échec récent (ou en cours) : valeur du jour même périmée plutôt qu'une erreur, sinon 503 immédiat
+        # au lieu de relancer, l'un après l'autre, un calcul qui échoue.
+        if entry is not None:
+            return entry[2]
+        raise HTTPException(status_code=503, detail="Pronostics momentanément indisponibles, réessaie dans un instant.")
     finally:
         _predict_today_lock.release()
 
