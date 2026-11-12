@@ -28,8 +28,10 @@ WHEN="$(date -u +'%Y-%m-%d %H:%M UTC')"
 FAILED="$(printf '%s' "$STEPS_JSON" | jq -r 'to_entries[] | select(.value.outcome == "failure") | .key' | paste -sd, - | sed 's/,/, /g')"
 
 gh label create "$LABEL" --color D93F0B --description "Alerte du pipeline quotidien" --force >/dev/null 2>&1 || true
-EXISTING="$(gh issue list --state open --label "$LABEL" --search "\"${TITLE}\" in:title" --json number,title \
-  --jq "[.[] | select(.title == \"${TITLE}\")][0].number // empty")"
+# Pas de `--search` : l'index de recherche de GitHub a un retard et créerait un doublon si deux échecs se suivent
+# de près. On liste les issues ouvertes portant l'étiquette et on compare le titre exactement avec jq.
+EXISTING="$(gh issue list --state open --label "$LABEL" --limit 100 --json number,title \
+  | jq -r --arg t "$TITLE" '[.[] | select(.title == $t)][0].number // empty')"
 
 if [ -n "$FAILED" ]; then
   BODY="**${WHEN}** — étape(s) en échec : \`${FAILED}\`"

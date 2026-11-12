@@ -141,7 +141,8 @@ def get_international_seasons(now: datetime | None = None) -> list[str]:
 def latest_season_for_league(conn: db_conn.Connection, league_id: int) -> str | None:
     """Saison (telle que publiée par la source) du match le plus récent connu de cette compétition."""
     row = conn.execute(
-        "SELECT season FROM matches WHERE idLeague = ? AND season IS NOT NULL ORDER BY date DESC LIMIT 1",
+        "SELECT season FROM matches WHERE idLeague = ? AND season IS NOT NULL AND date IS NOT NULL "
+        "ORDER BY date DESC LIMIT 1",  # sans NULL : en PostgreSQL ils passeraient en premier avec DESC
         (league_id,),
     ).fetchone()
     return row["season"] if row and row["season"] else None

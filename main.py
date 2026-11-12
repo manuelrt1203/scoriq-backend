@@ -1120,6 +1120,7 @@ _stats_calibration_cache: dict[str, Any] = {"entry": None}  # (instant, réponse
 _stats_calibration_lock = threading.Lock()
 
 _CALIBRATION_COLUMNS = (
+    "id, match_date, home_team, away_team, model_used, "
     "proba_home_win, proba_draw, proba_away_win, real_result, "
     "market_proba_home, market_proba_draw, market_proba_away"
 )

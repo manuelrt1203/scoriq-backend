@@ -8,7 +8,13 @@
 set -uo pipefail
 
 API="${API_URL:-https://scoriq-backend.onrender.com}"
-MAX_AGE_DAYS="${MAX_AGE_DAYS:-7}"
+# Trêve estivale (juin à août) : aucune compétition suivie ne joue pendant des semaines, un seuil de 7 jours
+# déclencherait une fausse alerte quotidienne et finirait par être ignoré.
+case "$(date -u +%m)" in
+  06|07|08) DEFAULT_MAX_AGE=35 ;;
+  *)        DEFAULT_MAX_AGE=7 ;;
+esac
+MAX_AGE_DAYS="${MAX_AGE_DAYS:-$DEFAULT_MAX_AGE}"
 OUT="${GITHUB_OUTPUT:-/dev/null}"
 
 fail() {

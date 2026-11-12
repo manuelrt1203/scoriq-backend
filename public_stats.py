@@ -101,20 +101,41 @@ def calibration_bins(rows: list[dict]) -> list[dict]:
 
 
 def market_comparison(rows: list[dict], total_evaluated: int) -> dict | None:
-    """Modèle et marché sur les mêmes matchs. None si trop peu de matchs ont des cotes."""
+    """Pronostic publié et cotes sur les mêmes matchs. None si trop peu de matchs ont des cotes.
+
+    ATTENTION : sur les matchs qui ont des cotes, le pronostic publié est un MÉLANGE du modèle et de ces mêmes
+    cotes (`model_used` finit par « +mkt », voir predict_v3.blend). Le comparer aux cotes ne mesure donc pas la
+    capacité du modèle seul à les battre ; `model_includes_market` (part des lignes mélangées) permet à
+    l'affichage de le dire."""
     with_odds = [r for r in rows if market_probabilities(r) is not None]
     if len(with_odds) < MIN_MARKET_MATCHES:
         return None
+    blended = sum("mkt" in str(r.get("model_used") or "") for r in with_odds)
     return {
         "n": len(with_odds),
         "coverage": round(len(with_odds) / total_evaluated, 4) if total_evaluated else None,
+        "model_includes_market": round(blended / len(with_odds), 4),
         "model": summarize(with_odds, model_probabilities),
         "market": summarize(with_odds, market_probabilities),
     }
 
 
+def dedupe_latest(rows: list[dict]) -> list[dict]:
+    """Un seul pronostic par match (le plus récent, id le plus grand), comme /top-picks : un rejeu ou un
+    recalcul ne doit pas compter deux fois. Les lignes sans identifiant de match sont gardées telles quelles."""
+    keyed: dict[tuple, dict] = {}
+    others = []
+    for r in rows:
+        key = (r.get("match_date"), r.get("home_team"), r.get("away_team"))
+        if None in key or r.get("id") is None:
+            others.append(r)
+        elif key not in keyed or r["id"] > keyed[key]["id"]:
+            keyed[key] = r
+    return list(keyed.values()) + others
+
+
 def build_public_stats(rows: list[dict]) -> dict:
-    scorable = _scorable(rows)
+    scorable = _scorable(dedupe_latest(rows))
     return {
         "calibration": calibration_bins(scorable),
         "overall": summarize(scorable, model_probabilities),

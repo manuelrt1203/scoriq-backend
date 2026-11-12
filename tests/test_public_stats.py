@@ -115,6 +115,37 @@ class MarketTests(unittest.TestCase):
         self.assertIsNone(ps.market_comparison(rows, 50))
 
 
+class BlendAndDuplicateTests(unittest.TestCase):
+    def odds_rows(self, n, model_used):
+        return [dict(row(0.5, 0.2, 0.3, "1", m=(0.45, 0.25, 0.30)), model_used=model_used) for _ in range(n)]
+
+    def test_blended_model_is_flagged(self):
+        # Sur les matchs avec cotes, le pronostic publié est un mélange modèle + cotes (« …+mkt »).
+        m = ps.market_comparison(self.odds_rows(40, "v3_lgbm+dc+mkt"), 40)
+        self.assertEqual(m["model_includes_market"], 1.0)
+
+    def test_independent_model_is_not_flagged_and_unknown_is_zero(self):
+        self.assertEqual(ps.market_comparison(self.odds_rows(40, "v3_lgbm+dc"), 40)["model_includes_market"], 0.0)
+        self.assertEqual(ps.market_comparison(self.odds_rows(40, None), 40)["model_includes_market"], 0.0)
+
+    def test_partial_blend_share(self):
+        rows = self.odds_rows(30, "v3_lgbm+dc+mkt") + self.odds_rows(10, "v3_lgbm+dc")
+        self.assertAlmostEqual(ps.market_comparison(rows, 40)["model_includes_market"], 0.75)
+
+    def test_duplicates_count_once_with_the_latest_row(self):
+        base = dict(match_date="2026-11-08", home_team="A", away_team="B")
+        rows = [dict(base, id=1, **row(0.9, 0.05, 0.05, "2")), dict(base, id=2, **row(0.2, 0.2, 0.6, "2")),
+                dict(match_date="2026-11-08", home_team="C", away_team="D", id=3, **row(0.5, 0.3, 0.2, "1"))]
+        out = ps.build_public_stats(rows)
+        self.assertEqual(out["overall"]["n"], 2)  # 3 lignes, 2 matchs
+        kept = {r["id"] for r in ps.dedupe_latest(rows)}
+        self.assertEqual(kept, {2, 3})  # le plus récent des deux pronostics de A–B
+
+    def test_rows_without_identifiers_are_kept(self):
+        rows = [row(0.5, 0.3, 0.2, "1"), row(0.5, 0.3, 0.2, "1")]
+        self.assertEqual(len(ps.dedupe_latest(rows)), 2)
+
+
 class BuildTests(unittest.TestCase):
     def test_full_payload_shape(self):
         rows = [row(0.6, 0.25, 0.15, "1") for _ in range(5)] + [row(0.5, 0.3, 0.2, None)]
