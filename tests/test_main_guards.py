@@ -29,11 +29,9 @@ def _stub_missing_modules():
         if name in sys.modules:
             continue
         try:
-            if importlib.util.find_spec(name) is not None:
-                continue
-        except (ImportError, ValueError):
-            pass
-        sys.modules[name] = types.ModuleType(name)
+            importlib.import_module(name)  # le vrai module s'il est installé et importable
+        except Exception:
+            sys.modules[name] = types.ModuleType(name)
     if not hasattr(sys.modules["groq"], "APIError"):
         sys.modules["groq"].APIError = type("APIError", (Exception,), {})
         sys.modules["groq"].Groq = object

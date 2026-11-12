@@ -26,6 +26,7 @@ GMAIL_USER     = os.environ.get("GMAIL_USER", "manuelrt1203@gmail.com")
 GMAIL_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 
 import db_conn
+import public_stats
 import security
 import numpy as np
 from scoriq_models import MIN_PROBA, plancher_probas
@@ -106,6 +107,7 @@ class SummaryResponse(BaseModel):
     total_predictions: int
     evaluated_predictions: int
     accuracy_1x2: float | None
+    correct_1x2: int | None = None  # nombre exact de 1X2 corrects (la précision seule oblige à le déduire)
     accuracy_btts: float | None
     accuracy_over_1_5: float | None
     accuracy_over_2_5: float | None
@@ -1088,6 +1090,7 @@ def stats_summary():
             """
             SELECT
                 AVG(is_correct_1x2)        AS accuracy_1x2,
+                SUM(CASE WHEN is_correct_1x2 = 1 THEN 1 ELSE 0 END) AS correct_1x2,
                 AVG(is_correct_btts)       AS accuracy_btts,
                 AVG(is_correct_over_1_5)   AS accuracy_over_1_5,
                 AVG(is_correct_over_2_5)   AS accuracy_over_2_5,
@@ -1101,6 +1104,7 @@ def stats_summary():
             total_predictions=total_predictions,
             evaluated_predictions=evaluated_predictions,
             accuracy_1x2=row["accuracy_1x2"],
+            correct_1x2=int(row["correct_1x2"]) if row["correct_1x2"] is not None else None,
             accuracy_btts=row["accuracy_btts"],
             accuracy_over_1_5=row["accuracy_over_1_5"],
             accuracy_over_2_5=row["accuracy_over_2_5"],
@@ -1108,6 +1112,54 @@ def stats_summary():
         )
     finally:
         conn.close()
+
+
+STATS_CALIBRATION_TTL = 600  # s — l'historique évalué ne change qu'au cron quotidien
+STATS_CALIBRATION_WAIT = 15  # s — attente maximale d'un visiteur derrière un premier calcul
+_stats_calibration_cache: dict[str, Any] = {"entry": None}  # (instant, réponse), remplacé d'un bloc
+_stats_calibration_lock = threading.Lock()
+
+_CALIBRATION_COLUMNS = (
+    "proba_home_win, proba_draw, proba_away_win, real_result, "
+    "market_proba_home, market_proba_draw, market_proba_away"
+)
+
+
+@app.get("/stats/calibration")
+def stats_calibration():
+    """Qualité mesurée des pronostics 1X2 (public) : calibration par tranche de probabilité annoncée,
+    scores du modèle et comparaison aux bookmakers sur les matchs qui ont des cotes (voir public_stats.py).
+    Mis en cache ; un seul visiteur recalcule, les autres reçoivent la dernière valeur (même périmée)."""
+    entry = _stats_calibration_cache["entry"]
+    if entry is not None and time.monotonic() - entry[0] < STATS_CALIBRATION_TTL:
+        return entry[1]
+    if not _stats_calibration_lock.acquire(blocking=False):
+        if entry is not None:
+            return entry[1]
+        if not _stats_calibration_lock.acquire(timeout=STATS_CALIBRATION_WAIT):
+            raise HTTPException(status_code=503, detail="Statistiques en cours de calcul, réessaie dans un instant.")
+    try:
+        entry = _stats_calibration_cache["entry"]
+        if entry is not None and time.monotonic() - entry[0] < STATS_CALIBRATION_TTL:
+            return entry[1]
+        try:
+            conn = get_conn()
+            try:
+                rows = conn.execute(
+                    f"SELECT {_CALIBRATION_COLUMNS} FROM predictions_history WHERE evaluation_status = 'OK'"
+                ).fetchall()
+            finally:
+                conn.close()
+            value = public_stats.build_public_stats([dict(r) for r in rows])
+        except Exception:
+            logger.exception("Calcul de /stats/calibration en échec")
+            if entry is not None:
+                return entry[1]  # dernière valeur connue plutôt qu'une erreur
+            raise HTTPException(status_code=503, detail="Statistiques momentanément indisponibles, réessaie dans un instant.")
+        _stats_calibration_cache["entry"] = (time.monotonic(), value)
+        return value
+    finally:
+        _stats_calibration_lock.release()
 
 
 @app.get("/stats/by-competition")
