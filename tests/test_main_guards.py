@@ -275,6 +275,52 @@ class AgentChatGuardTests(unittest.TestCase):
         self.assertEqual(json.loads(tool_result["content"]), {"error": main.AGENT_TOOL_ERROR})
         self.assertTrue(tool_result["is_error"])
 
+    def test_tool_error_messages(self):
+        self.assertEqual(main._tool_error_message(HTTPException(503, "Pronostics en cours de calcul")),
+                         "Pronostics en cours de calcul")  # nos propres messages sont transmis
+        for e in (ValueError("Outil serveur inconnu: x"), KeyError("limit"), TypeError("int() argument")):
+            self.assertEqual(main._tool_error_message(e), main.AGENT_TOOL_BAD_ARGS)
+        self.assertEqual(main._tool_error_message(RuntimeError("password=hunter2 host=db.internal")),
+                         main.AGENT_TOOL_ERROR)
+
+    def _chained_tool_round_setup(self, rounds):
+        replies = iter(
+            [{"role": "assistant", "content": [{"type": "tool_use", "id": f"t{i}", "name": "get_standings", "input": {}}]}
+             for i in range(rounds)]
+            + [{"role": "assistant", "content": [{"type": "text", "text": "fini"}]}])
+        return replies
+
+    def test_every_groq_call_counts_against_the_quota(self):
+        security._agent_limiter = security.SlidingWindowLimiter(3, 600)
+        replies = self._chained_tool_round_setup(5)
+        with mock.patch.object(security, "_fetch_user_id", return_value="u-1"), \
+             mock.patch.object(main, "get_groq_client", return_value=mock.MagicMock()) as client, \
+             mock.patch.object(main, "_wire_messages_to_groq_messages", return_value=[]), \
+             mock.patch.object(main, "_groq_tools", return_value=[]), \
+             mock.patch.object(main, "_groq_response_to_wire_message", side_effect=lambda r: next(replies)), \
+             mock.patch.object(main, "_run_server_tool", return_value={"ok": True}):
+            with self.assertRaises(HTTPException) as ctx:
+                self.call(f"Bearer {self.token}")
+            self.assertEqual(ctx.exception.status_code, 429)
+            create = client.return_value.chat.completions.create
+            self.assertEqual(create.call_count, 3)  # le 4e appel à Groq n'a pas eu lieu
+
+    def test_request_has_an_overall_deadline(self):
+        replies = self._chained_tool_round_setup(5)
+        clock = iter([0.0, 0.0, 10.0, 20.0, 59.5, 80.0, 90.0, 100.0, 110.0, 120.0])
+        with mock.patch.object(security, "_fetch_user_id", return_value="u-1"), \
+             mock.patch.object(main, "get_groq_client", return_value=mock.MagicMock()) as client, \
+             mock.patch.object(main, "_wire_messages_to_groq_messages", return_value=[]), \
+             mock.patch.object(main, "_groq_tools", return_value=[]), \
+             mock.patch.object(main, "_groq_response_to_wire_message", side_effect=lambda r: next(replies)), \
+             mock.patch.object(main, "_run_server_tool", return_value={"ok": True}), \
+             mock.patch.object(main.time, "monotonic", side_effect=lambda: next(clock)):
+            with self.assertRaises(HTTPException) as ctx:
+                self.call(f"Bearer {self.token}")
+        self.assertEqual(ctx.exception.status_code, 504)
+        timeouts = [c.kwargs["timeout"] for c in client.return_value.chat.completions.create.call_args_list]
+        self.assertTrue(all(0 < t <= 25.0 for t in timeouts), timeouts)
+
     def test_system_message_injection_is_refused_before_groq(self):
         with mock.patch.object(security, "_fetch_user_id", return_value="u-1"), \
              mock.patch.object(main, "get_groq_client", side_effect=AssertionError("Groq appelé")):

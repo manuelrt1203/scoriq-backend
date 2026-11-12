@@ -37,11 +37,25 @@ class FakeResponse:
             raise requests.HTTPError(f"{self.status_code}")
 
 
+def supabase_routes(user_response):
+    """Simule Supabase : la sonde de clé (/auth/v1/settings) répond 200, /auth/v1/user répond `user_response`."""
+    def fake_get(url, **kwargs):
+        if url.endswith("/auth/v1/settings"):
+            return FakeResponse(200, {"external": {"email": True}})
+        return user_response
+    return fake_get
+
+
+def user_calls(get):
+    return [c for c in get.call_args_list if c.args and c.args[0].endswith("/auth/v1/user")]
+
+
 def reset_state():
     security._token_cache.clear()
     security._validation_budget = security.SlidingWindowLimiter(security.VALIDATIONS_PER_MINUTE, 60)
     security._agent_limiter = security.SlidingWindowLimiter(security.AGENT_REQUESTS, security.AGENT_WINDOW)
     security._agent_global_limiter = security.SlidingWindowLimiter(security.AGENT_GLOBAL_REQUESTS, security.AGENT_WINDOW)
+    security._key_check.update(at=float("-inf"), ok=True)
 
 
 class SlidingWindowTests(unittest.TestCase):
@@ -83,9 +97,9 @@ class AuthenticateTests(unittest.TestCase):
         self.assertEqual(security._validation_budget._events, {})
 
     def test_forged_but_wellformed_token_is_refused_by_supabase(self):
-        with mock.patch.object(security.requests, "get", return_value=FakeResponse(401)) as get:
+        with mock.patch.object(security.requests, "get", side_effect=supabase_routes(FakeResponse(401))) as get:
             self.assertEqual(self.status(f"Bearer {make_jwt()}"), 401)
-            self.assertEqual(get.call_count, 1)
+            self.assertEqual(len(user_calls(get)), 1)
 
     def test_valid_token_returns_user_id_and_is_cached(self):
         tok = make_jwt()
@@ -101,38 +115,66 @@ class AuthenticateTests(unittest.TestCase):
         for code in (401, 403):
             security._token_cache.clear()
             with mock.patch.object(security.requests, "get",
-                                   return_value=FakeResponse(code, text='{"msg":"invalid JWT"}')) as get:
+                                   side_effect=supabase_routes(FakeResponse(code, text='{"msg":"invalid JWT"}'))) as get:
                 self.assertEqual(self.status(f"Bearer {tok}"), 401, code)
                 self.assertEqual(self.status(f"Bearer {tok}"), 401, code)
-                self.assertEqual(get.call_count, 1, code)
+                self.assertEqual(len(user_calls(get)), 1, code)  # le second refus vient du cache
 
     def test_rejected_api_key_is_a_server_problem_not_a_logout(self):
-        # Clé du backend erronée ou tournée : ne pas répondre « session expirée » à tout le monde.
+        # Clé du backend erronée ou tournée : ne pas répondre « session expirée » à tout le monde. Le test se
+        # fait en interrogeant Supabase avec NOTRE clé seule, pas en lisant le texte de l'erreur du jeton.
         tok = make_jwt()
         for code in (401, 403):
-            for body in ({"message": "Invalid API key"}, {"message": "No API key found in request", "hint": "x"}):
-                with mock.patch.object(security.requests, "get", return_value=FakeResponse(code, body)) as get:
-                    self.assertEqual(self.status(f"Bearer {tok}"), 503, (code, body))
-                    self.assertEqual(self.status(f"Bearer {tok}"), 503, (code, body))
-                    self.assertEqual(get.call_count, 2, (code, body))  # jamais mis en cache
+            security._key_check.update(at=float("-inf"), ok=True)
+            security._token_cache.clear()
+            with mock.patch.object(security.requests, "get", return_value=FakeResponse(code)) as get:
+                self.assertEqual(self.status(f"Bearer {tok}"), 503, code)
+                self.assertEqual(self.status(f"Bearer {tok}"), 503, code)
+                # Le verdict « clé refusée » est gardé 60 s, mais le refus du jeton n'est jamais mis en cache.
+                self.assertEqual(get.call_count, 3, code)  # jeton, sonde de clé, jeton
 
     def test_forged_token_cannot_fake_the_api_key_alarm(self):
-        # L'API d'authentification peut recopier l'en-tête du jeton dans son message : « api key » y figure,
-        # mais la réponse a la forme d'une erreur d'authentification (error_code / msg), pas celle de la passerelle.
+        # Quel que soit le texte de l'erreur (même contenant « api key »), seul le test direct de la clé compte.
         tok = make_jwt()
-        for body in ({"error_code": "bad_jwt", "msg": "signing method api key is invalid"},
-                     {"message": "invalid api key alg", "error_code": "bad_jwt"}):
-            security._token_cache.clear()
-            with mock.patch.object(security.requests, "get", return_value=FakeResponse(403, body)):
-                self.assertEqual(self.status(f"Bearer {tok}"), 401, body)
 
-    def test_deeply_nested_or_oversized_payload_is_a_401_not_a_500(self):
+        def fake_get(url, **kwargs):
+            if url.endswith("/auth/v1/settings"):
+                return FakeResponse(200, {"external": {"email": True}})  # notre clé est bonne
+            return FakeResponse(403, {"error_code": "bad_jwt", "msg": "signing method api key is invalid"})
+
+        with mock.patch.object(security.requests, "get", side_effect=fake_get):
+            self.assertEqual(self.status(f"Bearer {tok}"), 401)
+
+    def test_key_check_is_cached_and_tolerates_network_errors(self):
+        with mock.patch.object(security.requests, "get", return_value=FakeResponse(200)) as get:
+            self.assertTrue(security._api_key_is_valid())
+            self.assertTrue(security._api_key_is_valid())
+            self.assertEqual(get.call_count, 1)
+        security._key_check.update(at=float("-inf"), ok=True)
+        with mock.patch.object(security.requests, "get", side_effect=requests.ConnectionError("down")):
+            self.assertTrue(security._api_key_is_valid())  # on ne conclut rien si Supabase est injoignable
+
+    def test_deeply_nested_payload_is_a_401_not_a_500(self):
         deep = base64.urlsafe_b64encode(b"[" * 1500 + b"]" * 1500).decode().rstrip("=")
-        huge = base64.urlsafe_b64encode(json.dumps({"sub": "u", "exp": 9999999999, "x": "y" * 3000}).encode()).decode()
-        for payload in (deep, huge):
+        deeper = base64.urlsafe_b64encode(b"[" * 4000 + b"]" * 4000).decode().rstrip("=")
+        for payload in (deep, deeper):
             with mock.patch.object(security.requests, "get") as get:
                 self.assertEqual(self.status(f"Bearer aaa.{payload}.sig"), 401)
                 get.assert_not_called()
+
+    def test_realistic_oauth_sized_token_is_accepted(self):
+        # Jeton Google/Apple : beaucoup de métadonnées, bien au-delà de 2 Ko de charge utile.
+        meta = {"avatar_url": "https://example.com/" + "a" * 600, "full_name": "N" * 100, "picture": "p" * 600,
+                "provider_id": "1" * 30, "email": "x@y.z", "iss": "https://x.supabase.co/auth/v1"}
+        tok = make_jwt(user_metadata=meta, app_metadata={"providers": ["google"] * 5, "pad": "z" * 900})
+        self.assertGreater(len(tok.split(".")[1]), 2048)
+        with mock.patch.object(security.requests, "get", return_value=FakeResponse(200, {"id": "u-g"})):
+            self.assertEqual(security.authenticate_bearer(f"Bearer {tok}"), "u-g")
+
+    def test_absurd_token_sizes_are_refused(self):
+        with mock.patch.object(security.requests, "get") as get:
+            self.assertEqual(self.status("Bearer " + "a" * (security.MAX_TOKEN_LENGTH + 1)), 401)
+            get.assert_not_called()
 
     def test_server_errors_and_other_4xx_fail_closed_and_are_not_cached(self):
         tok = make_jwt()
@@ -173,10 +215,10 @@ class AuthenticateTests(unittest.TestCase):
 
     def test_validation_budget_caps_calls_to_supabase(self):
         security._validation_budget = security.SlidingWindowLimiter(3, 60)
-        with mock.patch.object(security.requests, "get", return_value=FakeResponse(401)) as get:
+        with mock.patch.object(security.requests, "get", side_effect=supabase_routes(FakeResponse(401))) as get:
             codes = [self.status(f"Bearer {make_jwt(sub=f'u{i}')}") for i in range(5)]
             self.assertEqual(codes, [401, 401, 401, 429, 429])
-            self.assertEqual(get.call_count, 3)
+            self.assertEqual(len(user_calls(get)), 3)
 
 
 class QuotaAndPayloadTests(unittest.TestCase):
@@ -202,6 +244,25 @@ class QuotaAndPayloadTests(unittest.TestCase):
                 security.check_agent_quota("attaquant")
         security.check_agent_quota("autre-1")
         security.check_agent_quota("autre-2")  # le plafond global n'a servi que 3 fois
+
+    def test_quota_holds_under_parallel_requests(self):
+        import threading
+        security._agent_limiter = security.SlidingWindowLimiter(5, 600)
+        security._agent_global_limiter = security.SlidingWindowLimiter(1000, 600)
+        accepted, refused = [], []
+
+        def hit():
+            try:
+                security.check_agent_quota("a")
+                accepted.append(1)
+            except HTTPException:
+                refused.append(1)
+
+        threads = [threading.Thread(target=hit) for _ in range(60)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        self.assertEqual(len(accepted), 5)  # jamais plus que le plafond, même en rafale
+        self.assertEqual(len(refused), 55)
 
     def test_global_saturation_does_not_burn_personal_quota(self):
         security._agent_limiter = security.SlidingWindowLimiter(2, 600)

@@ -1220,7 +1220,7 @@ def matches_today():
 PREDICT_TODAY_TTL = 300  # s — les données ne changent qu'au cron (2x/jour) ; 5 min suffisent
 _predict_today_cache: dict[str, Any] = {"entry": None}  # (jour, instant, réponse), remplacé d'un bloc
 _predict_today_lock = threading.Lock()
-PREDICT_TODAY_WAIT = 8          # s — attente maximale d'un visiteur derrière un premier calcul
+PREDICT_TODAY_WAIT = 15         # s — attente maximale d'un visiteur derrière un premier calcul
 PREDICT_TODAY_RETRY_DELAY = 10  # s — pause avant de retenter un calcul qui vient d'échouer
 _predict_today_failure: dict[str, Any] = {"at": None}
 
@@ -1698,6 +1698,19 @@ _groq_client: groq.Groq | None = None
 
 
 AGENT_TOOL_ERROR = "Cet outil a rencontré une erreur, réessaie avec d'autres paramètres ou une autre question."
+AGENT_TOOL_BAD_ARGS = "Paramètres invalides pour cet outil."
+AGENT_DEADLINE = 60  # s — durée totale maximale d'une requête /agent/chat (6 tours de Groq au plus)
+
+
+def _tool_error_message(e: Exception) -> str:
+    """Ce que le modèle (et donc le client) voit d'une erreur d'outil. Nos propres messages HTTP (« réessaie dans
+    un instant ») sont transmis pour que le modèle ne s'acharne pas ; tout le reste est masqué, le détail
+    (hôte, SQL...) n'étant jamais renvoyé."""
+    if isinstance(e, HTTPException):
+        return str(e.detail)
+    if isinstance(e, (ValueError, KeyError, TypeError)):
+        return AGENT_TOOL_BAD_ARGS
+    return AGENT_TOOL_ERROR
 
 
 def get_groq_client() -> groq.Groq:
@@ -1995,14 +2008,21 @@ def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default
 
     client = get_groq_client()
     messages = list(req.messages)
+    deadline = time.monotonic() + AGENT_DEADLINE
 
-    for _ in range(AGENT_MAX_TOOL_ROUNDS):
+    for round_index in range(AGENT_MAX_TOOL_ROUNDS):
+        remaining = deadline - time.monotonic()
+        if remaining <= 1:
+            raise HTTPException(status_code=504, detail="L'assistant a mis trop de temps à répondre, réessaie.")
+        if round_index > 0:
+            security.check_agent_quota(user_id)  # le premier appel est compté plus haut ; chaque appel à Groq compte
         try:
             response = client.chat.completions.create(
                 model=AGENT_MODEL,
                 messages=_wire_messages_to_groq_messages(messages),
                 tools=_groq_tools(),
                 max_tokens=1024,
+                timeout=min(25.0, remaining),
             )
         except groq.APIError as e:
             # Sans ce try/except, une erreur Groq (clé invalide, quota, panne...) remonte
@@ -2029,8 +2049,8 @@ def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default
                     try:
                         result = _run_server_tool(b["name"], b["input"])
                     except Exception as e:
-                        logger.warning("Outil %s en échec : %s", b["name"], e)  # détail (SQL, hôte...) : journaux seulement
-                        result = {"error": AGENT_TOOL_ERROR}
+                        logger.warning("Outil %r en échec : %r", b["name"], e)  # détail (SQL, hôte...) : journaux seulement
+                        result = {"error": _tool_error_message(e)}
                     pending.append(AgentPendingToolCall(id=b["id"], name=b["name"], input=b["input"], result=result))
             return AgentChatResponse(messages=messages, pending_tool_calls=pending, done=False)
 
@@ -2040,10 +2060,10 @@ def agent_chat(req: AgentChatRequest, authorization: str | None = Header(default
                 result = _run_server_tool(b["name"], b["input"])
                 tool_results.append({"type": "tool_result", "tool_use_id": b["id"], "content": json.dumps(result, default=str)})
             except Exception as e:
-                logger.warning("Outil %s en échec : %s", b["name"], e)
+                logger.warning("Outil %r en échec : %r", b["name"], e)
                 tool_results.append({
                     "type": "tool_result", "tool_use_id": b["id"],
-                    "content": json.dumps({"error": AGENT_TOOL_ERROR}), "is_error": True,
+                    "content": json.dumps({"error": _tool_error_message(e)}), "is_error": True,
                 })
         messages.append({"role": "user", "content": tool_results})
 

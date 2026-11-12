@@ -24,13 +24,18 @@ logger = logging.getLogger("scoriq")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://epmgjyiqcjklfjibrxhz.supabase.co").rstrip("/")
 SUPABASE_PUBLISHABLE_KEY = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_qGMZeILKhWfAC9dDQUn32Q_kwhaoGst")
 
+# Marge large : les jetons Google/Apple portent plus de métadonnées (nom, avatar, fournisseur...) ; une limite
+# trop serrée déconnecterait de vrais utilisateurs. Elle sert seulement à écarter les valeurs absurdes.
+MAX_TOKEN_LENGTH = 8192
+MAX_JWT_SEGMENT = 8192
+KEY_CHECK_TTL = 60            # la validité de la clé API du backend n'est pas revérifiée avant 60 s
 TOKEN_CACHE_TTL = 60          # un jeton déjà vérifié (ou refusé) n'est pas revérifié pendant 60 s
 TOKEN_CACHE_MAX = 2000
 VALIDATIONS_PER_MINUTE = 300  # appels à Supabase pour des jetons jamais vus, tous visiteurs confondus
-# Une requête peut déclencher jusqu'à AGENT_MAX_TOOL_ROUNDS appels à Groq : les plafonds restent bas.
-AGENT_REQUESTS = 40           # requêtes à l'assistant par utilisateur (une question avec outil client en coûte 2)
+# L'unité comptée est l'APPEL À GROQ (une requête HTTP peut en faire plusieurs), c'est lui qui coûte du quota.
+AGENT_REQUESTS = 60           # appels à Groq par utilisateur
 AGENT_WINDOW = 600            # ... sur 10 minutes
-AGENT_GLOBAL_REQUESTS = 100   # plafond tous utilisateurs confondus (comptes créés en série)
+AGENT_GLOBAL_REQUESTS = 300   # plafond tous utilisateurs confondus (comptes créés en série) : ~30 appels/min
 AGENT_MAX_MESSAGES = 60
 AGENT_MAX_CHARS = 250_000     # historique complet, résultats d'outils renvoyés par le client compris
 AGENT_ROLES = {"user", "assistant"}  # jamais « system » ni « tool » : ils viennent du serveur
@@ -84,6 +89,7 @@ _agent_limiter = SlidingWindowLimiter(AGENT_REQUESTS, AGENT_WINDOW)
 _agent_global_limiter = SlidingWindowLimiter(AGENT_GLOBAL_REQUESTS, AGENT_WINDOW)
 _token_cache: dict[str, tuple[float, str | None]] = {}
 _token_lock = threading.Lock()
+_quota_lock = threading.Lock()
 
 
 def _looks_like_live_jwt(token: str, now: float | None = None) -> bool:
@@ -91,7 +97,7 @@ def _looks_like_live_jwt(token: str, now: float | None = None) -> bool:
     Écarte les chaînes aléatoires sans dépenser le budget d'appels à Supabase (la vraie
     vérification de la signature reste faite par Supabase)."""
     parts = token.split(".")
-    if len(parts) != 3 or not all(parts) or len(parts[1]) > 2048:
+    if len(parts) != 3 or not all(parts) or len(parts[1]) > MAX_JWT_SEGMENT:
         return False
     try:
         payload = parts[1] + "=" * (-len(parts[1]) % 4)
@@ -106,18 +112,26 @@ def _looks_like_live_jwt(token: str, now: float | None = None) -> bool:
     return exp > (time.time() if now is None else now)
 
 
-def _is_api_key_rejection(r) -> bool:
-    """Le rejet de la clé API vient de la passerelle de Supabase : JSON {"message": ...} SANS les champs
-    de l'API d'authentification (error_code / msg). Un jeton forgé dont l'en-tête contiendrait « api key »
-    (repris dans le message d'erreur d'authentification) ne peut donc pas déclencher cette alerte."""
+_key_check: dict = {"at": float("-inf"), "ok": True}
+_key_lock = threading.Lock()
+
+
+def _api_key_is_valid() -> bool:
+    """La clé API du backend est-elle acceptée par Supabase ? Test direct (réglages publics du projet), sans
+    interpréter le texte d'une erreur : un jeton forgé ne peut pas le falsifier. Résultat gardé 60 s.
+    Si Supabase est injoignable on ne conclut rien (True) : le jeton recevra son verdict ou un 503."""
+    now = time.monotonic()
+    with _key_lock:
+        if now - _key_check["at"] < KEY_CHECK_TTL:
+            return _key_check["ok"]
     try:
-        body = r.json()
-    except ValueError:
-        return False
-    if not isinstance(body, dict) or "error_code" in body or "msg" in body:
-        return False
-    message = str(body.get("message", "")).lower()
-    return "api key" in message or "apikey" in message
+        r = requests.get(f"{SUPABASE_URL}/auth/v1/settings", headers={"apikey": SUPABASE_PUBLISHABLE_KEY}, timeout=5)
+    except requests.RequestException:
+        return True
+    ok = r.status_code not in (401, 403)
+    with _key_lock:
+        _key_check.update(at=now, ok=ok)
+    return ok
 
 
 def _fetch_user_id(token: str) -> str | None:
@@ -131,8 +145,8 @@ def _fetch_user_id(token: str) -> str | None:
     if r.status_code in (401, 403):
         # 401/403 = jeton refusé... sauf si c'est NOTRE clé API qui est refusée (mauvaise configuration) :
         # on le dit dans les journaux et on répond 503, au lieu de déconnecter tout le monde en silence.
-        if _is_api_key_rejection(r):
-            logger.error("Supabase refuse la clé publishable du backend : %s", detail)
+        if not _api_key_is_valid():
+            logger.error("Supabase refuse la clé publishable du backend (SUPABASE_PUBLISHABLE_KEY) : %s", detail)
             raise requests.RequestException("clé API refusée")
         return None
     if r.status_code != 200:
@@ -151,7 +165,7 @@ def authenticate_bearer(authorization: str | None) -> str:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Connexion requise pour utiliser l'assistant.")
     token = authorization[7:].strip()
-    if not token or len(token) > 4096 or not _looks_like_live_jwt(token):
+    if not token or len(token) > MAX_TOKEN_LENGTH or not _looks_like_live_jwt(token):
         raise HTTPException(status_code=401, detail="Session invalide ou expirée, reconnecte-toi.")
 
     digest = hashlib.sha256(token.encode()).hexdigest()  # le jeton lui-même n'est jamais gardé
@@ -188,12 +202,13 @@ def check_agent_quota(user_id: str) -> None:
     # Deux temps : on vérifie les deux plafonds SANS rien enregistrer, puis on enregistre. Une requête refusée
     # ne consomme donc ni le plafond global (un seul compte insistant ne bloque pas les autres) ni le quota
     # personnel (un refus dû à la saturation globale ne pénalise pas l'utilisateur).
-    if not _agent_limiter.would_allow(user_id):
-        raise HTTPException(status_code=429, detail="Tu as beaucoup sollicité l'assistant, réessaie dans quelques minutes.")
-    if not _agent_global_limiter.would_allow("global"):
-        raise HTTPException(status_code=429, detail="L'assistant est très sollicité, réessaie dans quelques minutes.")
-    _agent_limiter.allow(user_id)
-    _agent_global_limiter.allow("global")
+    with _quota_lock:  # vérification + enregistrement d'un seul bloc : des requêtes parallèles ne dépassent pas le plafond
+        if not _agent_limiter.would_allow(user_id):
+            raise HTTPException(status_code=429, detail="Tu as beaucoup sollicité l'assistant, réessaie dans quelques minutes.")
+        if not _agent_global_limiter.would_allow("global"):
+            raise HTTPException(status_code=429, detail="L'assistant est très sollicité, réessaie dans quelques minutes.")
+        _agent_limiter.allow(user_id)
+        _agent_global_limiter.allow("global")
 
 
 def _valid_block(b) -> bool:
