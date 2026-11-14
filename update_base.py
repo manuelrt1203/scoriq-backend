@@ -422,7 +422,13 @@ def purge_vanished(conn: db_conn.Connection, comp: dict[str, Any], season: str, 
     return changed
 
 
-def fetch_events_for_competition(comp: dict[str, Any], season: str) -> tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]]]:
+def is_probe_season(comp_type: str, season: str) -> bool:
+    """Saison « à cheval » (2026-2027) testée en plus des années simples pour une compétition internationale :
+    la plupart des compétitions n'y ont rien. Sert à ne pas dépenser une dizaine d'appels à vide sur chacune."""
+    return comp_type == "INTERNATIONAL" and "-" in season
+
+
+def fetch_events_for_competition(comp: dict[str, Any], season: str, probe: bool = False) -> tuple[list[dict[str, Any]], dict[int, list[dict[str, Any]]]]:
     league_id = comp["idLeague"]
     comp_type = comp.get("competition_type", "")
     rounds = int(comp.get("rounds") or DEFAULT_ROUNDS_BY_TYPE.get(comp_type, 20))
@@ -434,6 +440,11 @@ def fetch_events_for_competition(comp: dict[str, Any], season: str) -> tuple[lis
     # 1) Saison complète
     season_events = fetch_events_for_league_season(league_id, season)
     collected.extend(dedupe_events(season_events))
+
+    # Saison de sondage : si la liste de saison est vide, inutile de parcourir les journées (4 appels à vide
+    # de plus). Un oubli éventuel est rattrapé par check_fixture_coverage.py (prochain match manquant en base).
+    if probe and not season_events:
+        return [], {}
 
     # 2) Rounds séquentiels (phase de ligue, coupe domestique, etc.)
     empty_streak = 0
@@ -495,7 +506,9 @@ def main() -> None:
 
             for season in seasons:
                 try:
-                    events, by_round = fetch_events_for_competition(comp, season)
+                    events, by_round = fetch_events_for_competition(
+                        comp, season, probe=is_probe_season(comp_type, season)
+                    )
                 except Exception as e:
                     print(f"  -> erreur API sur {season} : {e}")
                     time.sleep(SLEEP_BETWEEN_REQUESTS)

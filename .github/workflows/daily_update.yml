@@ -38,6 +38,10 @@ jobs:
         id: update_db
         continue-on-error: true
         run: python update_base.py
+      - name: Contrôle de couverture (le prochain match de chaque compétition est-il en base ?)
+        id: coverage
+        continue-on-error: true
+        run: python check_fixture_coverage.py
       - name: Clean up corrupted CL round=400 rows
         id: cleanup_cl
         continue-on-error: true
@@ -68,6 +72,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           JOB_NAME: "Mise à jour de la base"
+          DETAILS: ${{ steps.coverage.outputs.reason }}
           STEPS_JSON: ${{ toJSON(steps) }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash .github/scripts/pipeline_alert.sh
