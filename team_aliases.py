@@ -29,6 +29,12 @@ TABLES_COLUMNS = [
     ("shots_data", "home_team"), ("shots_data", "away_team"),
 ]
 
+# Tables où renommer « alias » -> « canonique » peut doublonner une ligne canonique déjà présente pour la même
+# rencontre (contrainte d'unicité) : on supprime alors la ligne d'alias avant de renommer. Valeur = colonnes qui
+# identifient la rencontre, hors équipes. Uniquement shots_data (tirs : donnée dérivée). JAMAIS predictions_history
+# (historique public), matches ni odds : un conflit y reste une erreur visible, pas une suppression silencieuse.
+DEDUP_KEYS = {"shots_data": ("idleague", "season", "match_date")}
+
 # Alias déjà identifiés manuellement (incidents PSG 28/08, Köln/Porto/Man Utd/
 # Braga/Sporting 29/08, Ipswich 02/09) — seed de la table à sa création.
 KNOWN_ALIASES = {
@@ -71,16 +77,45 @@ def load_alias_map(conn: db_conn.Connection) -> dict[str, str]:
     return {r["alias"]: r["canonical_name"] for r in rows}
 
 
+def drop_alias_duplicates(conn: db_conn.Connection, table: str, col: str, alias: str, canonical: str) -> None:
+    """Supprime les lignes `col = alias` qui existent déjà sous `col = canonical` pour la même rencontre.
+    Sans cela, l'UPDATE de fusion viole la contrainte d'unicité de la table (cas réel : shots_data, 743 doublons
+    pour « Paris SG », « FC Koln » et « Ipswich », qui bloquaient sync_team_badges depuis le 12/11/2026)."""
+    other = "away_team" if col == "home_team" else "home_team"
+    same = " AND ".join(f"b.{k} = {table}.{k}" for k in (*DEDUP_KEYS[table], other))
+    conn.execute(
+        f"DELETE FROM {table} WHERE {col} = ? AND EXISTS (SELECT 1 FROM {table} b WHERE {same} AND b.{col} = ?)",
+        (alias, canonical),
+    )
+
+
 def merge_alias(conn: db_conn.Connection, alias: str, canonical: str) -> None:
+    if alias == canonical:
+        # Sans ce garde-fou, le DELETE de drop_alias_duplicates retrouverait chaque ligne comme son propre « doublon »
+        # et effacerait toute l'équipe de shots_data (seul add_alias refusait ce cas ; apply_all lit la table telle quelle).
+        # On le dit : une ligne pareille est une erreur de saisie à corriger dans team_aliases, pas à cacher.
+        print(f"[ALIAS] ligne ignorée : alias identique au nom canonique ({alias!r}), à corriger dans team_aliases")
+        return
     for table, col in TABLES_COLUMNS:
+        if table in DEDUP_KEYS:
+            drop_alias_duplicates(conn, table, col, alias, canonical)
         conn.execute(f"UPDATE {table} SET {col} = ? WHERE {col} = ?", (canonical, alias))
     conn.commit()
 
 
 def apply_all(conn: db_conn.Connection) -> None:
-    """Rejoue tous les alias connus sur les 4 tables. Idempotent (no-op si déjà fusionné)."""
+    """Rejoue tous les alias connus sur les 4 tables. Idempotent (no-op si déjà fusionné).
+    Un alias en échec n'empêche plus les suivants : on annule SON travail, on continue, puis on lève une erreur
+    récapitulative à la fin (le pipeline la signale par une issue, comme avant)."""
+    errors = []
     for alias, canonical in load_alias_map(conn).items():
-        merge_alias(conn, alias, canonical)
+        try:
+            merge_alias(conn, alias, canonical)
+        except Exception as e:  # noqa: BLE001 : on veut tous les alias traités avant d'échouer
+            conn.rollback()
+            errors.append(f"{alias!r} -> {canonical!r} : {type(e).__name__}: {e}")
+    if errors:
+        raise RuntimeError(f"Fusion impossible pour {len(errors)} alias :\n" + "\n".join(errors))
 
 
 def add_alias(conn: db_conn.Connection, alias: str, canonical: str) -> None:
